@@ -1,0 +1,12 @@
+#+TITLE: 通过阅读源码学习
+#+AUTHOR: rgb-24bit
+
+* NOTE
+  这个项目旨在通过阅读源码来进行学习.
+
+* Python
+  + [[https://github.com/requests/requests][requests]] - *pythonic* 的典范, 值得一读.
+
+* C-C++
+  + [[https://github.com/fragglet/c-algorithms][c-algorithms]] - *纯C* 实现的数据结构与算法, 读一读.
+
