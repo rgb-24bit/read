@@ -2,6 +2,19 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
+* 目录                                                    :TOC_4_gh:noexport:
+- [[#概览][概览]]
+- [[#corepy][core.py]]
+  - [[#class-_request][class _Request]]
+  - [[#class-response][class Response]]
+  - [[#class-request][class Request]]
+  - [[#class-authobject][class AuthObject]]
+  - [[#def-get-head-post-put-delete][def get, head, post, put, delete]]
+  - [[#def-add_autoauth][def add_autoauth]]
+  - [[#def-_get_autoauth][def _get_autoauth]]
+  - [[#other][other...]]
+- [[#收获][收获]]
+
 * 概览
   =git co v0.2.0= 之后, 我看到了 =v0.2.0= 版本的 =requests=.
 

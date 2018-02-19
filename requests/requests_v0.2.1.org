@@ -2,6 +2,18 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
+* 目录                                                    :TOC_4_gh:noexport:
+- [[#版本对比][版本对比]]
+- [[#corepy][core.py]]
+- [[#encodepy][encode.py]]
+  - [[#魔法方法-__cmp__][魔法方法 ~__cmp__~]]
+  - [[#classmethod][@classmethod]]
+  - [[#魔法方法-__iter__][魔法方法 ~__iter__~]]
+- [[#streaminghttppy][streaminghttp.py]]
+  - [[#还可以这样-][还可以这样 ?]]
+  - [[#作用域问题][作用域问题]]
+- [[#收获][收获]]
+
 * 版本对比
   通过 ~git diff v0.2.0:requests/core.py v0.2.1:requests/core.py~ 和 ~HISTORY.rst~
   可以发现, 两个版本之间的主要变化集中在对 ~PUT~ 和 ~POST~ 方法的处理上.
