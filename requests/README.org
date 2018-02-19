@@ -1,0 +1,13 @@
+#+TITLE:      requests 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 目前进度
+  - [[file:requests_v0.2.0.org][requests_v0.2.0.org]] -- ~v0.2.0~ 版本阅读
+  - [[file:requests_v0.2.1.org][requests_v0.2.1.org]] -- ~v0.2.1~ 版本阅读
+  - [[file:requests_v0.2.2.org][requests_v0.2.2.org]] -- ~v0.2.2~ - ~v0.2.4~ 版本阅读
+  - [[file:requests_v0.3.0.org][requests_v0.3.0.org]] -- ~v0.3.0~ 版本阅读
+
+* 暂停更新
+  ~Requests~ 中的部分内容触及到了我的知识盲区， 我想我需要补充一下知识再来阅读源码。
+  
