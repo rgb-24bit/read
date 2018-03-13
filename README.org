@@ -2,9 +2,9 @@
 #+AUTHOR:     rgb-24bit
 
 * Python
-  + [[https://github.com/requests/requests][requests]] - ~pythonic~ 的典范， 值得一读。
-  + [[https://github.com/webpy/webpy][webpy]] - 简单而直接的 ~Python web~ 框架， 学习一下。
-
+  + [[https://github.com/requests/requests][requests]] - ~Pythonic~ 的类库， 了解一下
+  + [[https://github.com/webpy/webpy][webpy]] - 简单而直接的 ~Python web~ 框架， 了解一下
+    
 * C-C++
-  + [[https://github.com/fragglet/c-algorithms][c-algorithms]] - ~C~ 实现的数据结构与算法，  读一读。
+  + [[https://github.com/fragglet/c-algorithms][c-algorithms]] - ~C~ 实现的数据结构与算法，  了解一下
 

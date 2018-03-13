@@ -77,9 +77,10 @@
     def __init__(self, url=None, headers=dict(), files=None, method=None,
                  params=dict(), data=dict(), auth=None, cookiejar=None):
   #+END_SRC
-  啪！ 当我之前的话没说好了......
-
-  不过， ~data=dict()~ 和 ~data={}~ 那个好呢 ？
+  和 ~v0.2.2~ 版本的做法相反， 到底那个好...
+  
+  *2018-03-13 更新：* 看了以前自己的代码， 全是位置参数...
+  不说了...
   
 * v0.2.x
   emmm, 直接 ~git co v0.2.5~ 出错了， 下一个版本直接是
