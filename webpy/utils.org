@@ -1,0 +1,71 @@
+#+TITLE:      utils
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* import
+  #+BEGIN_SRC python
+    from __future__ import print_function
+
+    __all__ = [...]
+
+    import re, sys, time, threading, itertools, traceback, os
+
+    import subprocess
+    import datetime
+    from threading import local as threadlocal
+
+    from .py3helpers import PY2, itervalues, iteritems, text_type, string_types, imap, is_iter
+
+    try:
+        from StringIO import StringIO
+    except ImportError:
+        from io import StringIO
+  #+END_SRC
+
+  ~__all__~ 里面的东西是真滴多， 这个模块源码的阅读要点时间了......
+
+  导入的模块里有几个不熟悉的：
+  + itertools :: 用于高效循环的迭代函数集合， 简单的看了一下， 好东西， 了解一下
+  + traceback :: 可以用于获取详细的异常信息
+  + StringIO :: 在内存中读写 ~str~, 感觉好像可以用 /@_@/
+  + threading & subprocess :: 貌似自己现在的程序用不上 /QAQ/
+
+* class Storage
+  这个类实现的功能是我一直想要的。
+  #+BEGIN_SRC python
+    class Storage(dict):
+        def __getattr__(self, key):
+            try:
+                return self[key]
+            except KeyError as k:
+                raise AttributeError(k)
+
+        def __setattr__(self, key, value): 
+            self[key] = value
+
+        def __delattr__(self, key):
+            try:
+                del self[key]
+            except KeyError as k:
+                raise AttributeError(k)
+
+        def __repr__(self):
+            return '<Storage ' + dict.__repr__(self) + '>'
+
+    storage = Storage
+  #+END_SRC
+
+  实现还是很简单的， 可以这样操作字典了：
+  #+BEGIN_SRC python
+    >>> obj = storage(a = 1)
+    >>> obj.a
+    1
+    >>> obj['a']
+    1
+    >>> obj.b = 10
+    >>> obj.b
+    10
+  #+END_SRC
+
+  这可以有很多骚操作
+
