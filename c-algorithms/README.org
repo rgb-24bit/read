@@ -1,0 +1,7 @@
+#+TITLE:      c-algorithms 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 源码链接
+  + [[https://github.com/fragglet/c-algorithms][c-algorithms]]
+

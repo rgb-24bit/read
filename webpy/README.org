@@ -2,17 +2,11 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
+* 源码链接
+  + [[https://github.com/webpy/webpy][webpy]]
+
 * 目前进度
   + [[file:overview.org][Overview]] - 概览
   + [[file:py3helpers.org][py3helpers]] - Python3 兼容
   + [[file:utils.org][utils]] - 相对独立使用频繁的工具模块
-
-* webpy & flask
-  ~webpy~ 和 ~flask~ 是经常拿来比较的两个轻量级 ~Python Web~ 框架， 虽然选择
-  了阅读 ~webpy~ 的源码， 但我感觉还是有必要留一个 ~flask~ 的链接的！
-
-  + [[https://github.com/pallets/flask][flask]]
-
-  emmm, 还有 ~webpy~ 的：
-  + [[https://github.com/webpy/webpy][webpy]]
 

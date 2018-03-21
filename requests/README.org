@@ -2,6 +2,9 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
+* 源码链接
+  + [[https://github.com/requests/requests][requests]]
+
 * 目前进度
   - [[file:requests_v0.2.0.org][requests_v0.2.0.org]] -- ~v0.2.0~ 版本阅读
   - [[file:requests_v0.2.1.org][requests_v0.2.1.org]] -- ~v0.2.1~ 版本阅读
