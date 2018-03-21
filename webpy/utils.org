@@ -2,6 +2,12 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#import][import]]
+- [[#class-storage][class Storage]]
+  - [[#function-storify][function storify]]
+  - [[#function-safeunicode][function safeunicode]]
+
 * import
   #+BEGIN_SRC python
     from __future__ import print_function
@@ -67,5 +73,102 @@
     10
   #+END_SRC
 
-  这可以有很多骚操作
+** function storify
+   这个函数的作用是将一个映射对象转化为 ~storage~ 对象， 同时允许通过
+   位置参数和关键字参数设置返回的 ~storage~ 对象的值。
+   
+   #+BEGIN_SRC python
+     _unicode = defaults.pop('_unicode', False)
+
+     # if _unicode is callable object, use it convert a string to unicode.
+     to_unicode = safeunicode
+     if _unicode is not False and hasattr(_unicode, "__call__"):
+         to_unicode = _unicode
+   #+END_SRC
+   
+   这段代码， 应该是和其他地方进行配合吧， 允许从映射中传入 ~to_unicode~ 的方法。
+   
+   对于 ~Python2~ 和 ~Python3~ 中 ~str~ 代表的字符串类型不同的解决方案， 默认使用 ~safeunicode~
+   函数进行转换。 这个函数就定义在这个模块中： [[#function-safeunicode][safeunicode]]
+
+   #+BEGIN_SRC python
+     def unicodify(s):
+         if _unicode and isinstance(s, str): return to_unicode(s)
+         else: return s
+   #+END_SRC
+
+   依赖 ~to_unicode~, 定义了这个转换为 ~unicode~ 的函数， ~ify~ 后缀的意思是 ~使...变得...~
+
+  #+BEGIN_SRC python
+    def getvalue(x):
+        if hasattr(x, 'file') and hasattr(x, 'value'):
+            return x.value
+        elif hasattr(x, 'value'):
+            return unicodify(x.value)
+        else:
+            return unicodify(x)
+  #+END_SRC
+
+  保证程序内部的值的类型都是 ~unicode~, 只是， 什么对象具有 ~file~ 属性呢？
+
+  #+BEGIN_SRC python
+    def storify(mapping, *requireds, **defaults):
+        ...
+        for key in requireds + tuple(mapping.keys()):
+            ...
+        for (key, value) in iteritems(defaults):
+            ...
+  #+END_SRC
+
+  这里是 ~storify~ 函数传入的参数列表， 分别使用了两个循环来处理后边的两个参数。
+  循环内部大量使用 ~isinstance~ 函数， 在我看来不怎么有用的函数还是很有用的......
+
+** function safeunicode   
+   #+BEGIN_SRC python
+     def safeunicode(obj, encoding='utf-8'):
+         t = type(obj)
+         if t is text_type:
+             return obj
+         elif t is bytes:
+             return obj.decode(encoding)
+         elif t in [int, float, bool]:
+             return unicode(obj)
+         else:
+             return unicode(obj)
+
+     def safestr(obj, encoding='utf-8'):
+         if PY2 and isinstance(obj, unicode):
+             return obj.encode(encoding)
+         elif is_iter(obj):
+             return imap(safestr, obj)
+         else:
+             return str(obj)
+
+     if not PY2:
+         safeunicode = safestr
+   #+END_SRC
+
+   这是实现 ~safeunicode~ 的源码， ~py3helpers~ 对类型的兼容处理在这里起到作用了。
+
+   ~text_type~ 是 ~unicode~, 这里才发现可以像 ~t is text_type~ 这样判断类型。
+
+   #+BEGIN_SRC python
+     >>> type(dict)
+     <type 'type'>
+     >>> type(dict) is dict
+     False
+     >>> d = dict()
+     >>> type(d)
+     <type 'dict'>
+     >>> type(d) is dict
+     True
+   #+END_SRC
+
+   尝试了一下， ~type~ 返回对象的类型， ~dict~ 的类型是 ~type~, ~dict~ 实例的类型才是 ~dict~.
+
+   ~safestr~ 函数这里晕了一下， 看了几遍， 意思应该就是对 ~Python2~ 和 ~Python3~ 的兼容了。
+
+   将原有的对象安全的转换会 ~str~, 由于 ~Python2~ 和 ~Python3~ 中 ~str~ 的类型不相同， 所以需要绕一下。
+
+   而 ~Python3~ 中， ~str~ 就是 ~unicode~, 所以 ~safeunicode = safestr~.
 
