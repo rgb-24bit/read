@@ -2,8 +2,10 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
-* 源码链接
-  + [[https://github.com/webpy/webpy][webpy]]
+* 简介
+  ~webpy~ 是一个轻量级的 ~Python web~ 框架， 与之类似的框架还有 [[https://github.com/pallets/flask][flask]].
+
+  另， 源码链接： [[https://github.com/webpy/webpy][webpy]]
 
 * 目前进度
   + [[file:overview.org][Overview]] - 概览
