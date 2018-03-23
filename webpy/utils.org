@@ -7,6 +7,10 @@
 - [[#class-storage][class Storage]]
   - [[#function-storify][function storify]]
   - [[#function-safeunicode][function safeunicode]]
+- [[#class-counter][class Counter]]
+- [[#iters][iters]]
+- [[#function-strips][function strips]]
+- [[#function-timelimit][function timelimit]]
 
 * import
   #+BEGIN_SRC python
@@ -168,7 +172,147 @@
 
    ~safestr~ 函数这里晕了一下， 看了几遍， 意思应该就是对 ~Python2~ 和 ~Python3~ 的兼容了。
 
-   将原有的对象安全的转换会 ~str~, 由于 ~Python2~ 和 ~Python3~ 中 ~str~ 的类型不相同， 所以需要绕一下。
+   将原有的对象安全的转换回 ~str~, 由于 ~Python2~ 和 ~Python3~ 中 ~str~ 的类型不相同， 所以需要绕一下。
 
    而 ~Python3~ 中， ~str~ 就是 ~unicode~, 所以 ~safeunicode = safestr~.
+
+* class Counter
+  这个类继承自 ~class storage~, 功能和 ~collections~ 模块的 ~Counter~ 有点类似， 但也有很多不同。
+
+  实现的几个方法：
+
+  #+BEGIN_SRC python
+    # key 键值 + 1
+    def add(self, n):
+        self.setdefault(n, 0)
+        self[n] += 1
+
+    # 返回 value 最大的 key
+    def most(self):
+        m = max(itervalues(self))
+        return [k for k, v in iteritems(self) if v == m]
+
+    # 返回 value 最小的 key
+    def least(self):
+        m = min(self.itervalues())
+        return [k for k, v in iteritems(self) if v == m]
+
+    # 返回 key 的 value 在所有 values 中占得比例
+    def percent(self, key):
+        return float(self[key])/sum(self.values())
+
+    # 返回排序的 keys
+    def sorted_keys(self):
+        return sorted(self.keys(), key=lambda k: self[k], reverse=True)
+
+    # 返回排序的 values
+    def sorted_values(self):
+        return [self[k] for k in self.sorted_keys()]
+
+    # 返回排序的 (key, value), 根据 key 排序
+    def sorted_items(self):
+        return [(k, self[k]) for k in self.sorted_keys()]
+  #+END_SRC
+
+  ~py3helpers~ 中对 ~dict~ 的 ~iter*~ 方法的处理真的很有用啊 ！
+
+  #+BEGIN_SRC python
+    counter = Counter
+  #+END_SRC
+
+* iters
+  #+BEGIN_SRC python
+    iters = [list, tuple, set, frozenset]
+    class _hack(tuple): pass
+    iters = _hack(iters)
+    iters.__doc__ = """
+    A list of iterable items (like lists, but not strings). Includes whichever
+    of lists, tuples, sets, and Sets are available in this version of Python.
+    """
+  #+END_SRC
+
+  第一眼， 为什么不直接就用 ~tuple~, 还要继承 ~tuple~, 然后才发现， ~__doc__~
+  貌似是 *类变量*, 而且 ~tuple~ 的 ~__doc__~ 还是只读变量。
+
+  还是继承好。
+
+* function strips
+  ~python str~ 对象自身就有 ~strip~ 方法， 经常用来去除不必要的空白字符。
+
+  这里实现了一个高级的版本：
+  #+BEGIN_SRC python
+    def _strips(direction, text, remove):
+        if isinstance(remove, iters):
+            for subr in remove:
+                text = _strips(direction, text, subr)
+            return text
+
+        if direction == 'l':
+            if text.startswith(remove):
+                return text[len(remove):]
+        elif direction == 'r':
+            if text.endswith(remove):
+                return text[:-len(remove)]
+        else:
+            raise ValueError("Direction needs to be r or l.")
+        return text
+  #+END_SRC
+
+  对于 ~for~ 循环那一段， ~Python~ 没有局部作用域是真滴强。
+
+  后面的实现还是比较简单的。
+
+  根据这个方法， 相继实现了：
+  #+BEGIN_SRC python
+    def lstrips(text, remove):
+    def rstrips(text, remove):
+    def strips(text, remove):
+        return rstrips(lstrips(text, remove), remove)
+  #+END_SRC
+
+  最后的 ~strips~ 的实现感觉.
+
+* function timelimit
+  ~Python~ 之中， 一切皆是对象。 感觉这句话在这里有一些体现：
+  #+BEGIN_SRC python
+    def timelimit(timeout):
+        def _1(function):
+            def _2(*args, **kw):
+                class Dispatch(threading.Thread):
+                    def __init__(self):
+                        threading.Thread.__init__(self)
+                        self.result = None
+                        self.error = None
+
+                        self.setDaemon(True)
+                        self.start()
+
+                    def run(self):
+                        try:
+                            self.result = function(*args, **kw)
+                        except:
+                            self.error = sys.exc_info()
+
+                c = Dispatch()
+                c.join(timeout)
+                if c.isAlive():
+                    raise RuntimeError('took too long')
+                if c.error:
+                    raise c.error[1]
+                return c.result
+            return _2
+        return _1
+  #+END_SRC
+
+  这个函数的使用流程：
+  1. 定义一个函数 ~func~
+  2. 通过 ~timelimit(timeout)~ 得到新的函数 ~func1~
+  3. 通过 ~func1(func)~ 得到新的函数 ~func2~
+  4. 使用 ~func2~
+  
+  简化的流程就是： ~timelimit(timeout)(func)()~.
+
+  看到这一连串的括号， 嗯， 可以， 很强势。
+
+  对于这个函数的作用， 我想我需要去了解一下 *多线程* 的内容先。
 
