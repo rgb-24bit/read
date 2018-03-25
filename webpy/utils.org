@@ -11,6 +11,7 @@
 - [[#iters][iters]]
 - [[#function-strips][function strips]]
 - [[#function-timelimit][function timelimit]]
+- [[#class-memoize][class Memoize]]
 
 * import
   #+BEGIN_SRC python
@@ -316,3 +317,69 @@
 
   对于这个函数的作用， 我想我需要去了解一下 *多线程* 的内容先。
 
+  了解了一下， 这个函数的代码看起来还是有点绕......
+
+  首先， 最外层的 ~timelimit(timeout)~ 设置好超时时间， 获得 ~_1~. 然后通过 ~_1(function)~ 获得
+   ~_2~. 在 ~_2~ 中， 继承 ~threading.Thread~ 的 ~class Dispatch~ 用来运行 ~function~. 最开始设置的
+   超时时间用于判断 ~function~ 的执行是否在指定的时间内完成。
+
+   嗯， 功能大概就是用来构建一个 *在指定之间内完成指定任务的函数*.
+
+* class Memoize
+  接着绕啊绕......
+
+  首先， 是魔法方法 ~__call__~. 这个魔法方法允许向访问方法那样访问类的实例：
+  #+BEGIN_SRC python
+    class A(object):
+        def __init__(self):
+            self.num = 0
+
+        def __call__(self, *args, **kwargs):
+            self.num += 1
+            return self.num
+
+    num = A()
+    print(num())
+    print(num())
+    print(num())
+  #+END_SRC
+
+  然后， 是这个类来干嘛的 ！
+  #+BEGIN_SRC python
+    class Memoize:
+        def __init__(self, func, expires=None, background=True):
+            self.func = func
+            self.cache = {}
+            self.expires = expires
+            self.background = background
+            self.running = {}
+
+        def __call__(self, *args, **keywords):
+            key = (args, tuple(keywords.items()))
+            if not self.running.get(key):
+                self.running[key] = threading.Lock()
+            def update(block=False):
+                if self.running[key].acquire(block):
+                    try:
+                        self.cache[key] = (self.func(*args, **keywords), time.time())
+                    finally:
+                        self.running[key].release()
+
+            if key not in self.cache:
+                update(block=True)
+            elif self.expires and (time.time() - self.cache[key][1]) > self.expires:
+                if self.background:
+                    threading.Thread(target=update).start()
+                else:
+                    update()
+            return self.cache[key][0]
+  #+END_SRC
+
+  这个类会保存每次运算的结果， 根据调用方法的参数。
+
+  保存运算结果时会一同保存得到结果的时间， 如果调用时定义了 ~expires~, 会根据调用的时间和上一次得到
+  的结果差来判断是否需要更新结果。
+
+  如果定义了 ~background=True~, 会将计算结果的过程放入一个单独的线程进行。
+
+  对于 ~update~ 中的线程锁， 继续补充知识 !
