@@ -12,6 +12,8 @@
 - [[#function-strips][function strips]]
 - [[#function-timelimit][function timelimit]]
 - [[#class-memoize][class Memoize]]
+- [[#class-_re_subm_proxy][class _re_subm_proxy]]
+  - [[#function-re_subm][function re_subm]]
 
 * import
   #+BEGIN_SRC python
@@ -383,3 +385,46 @@
   如果定义了 ~background=True~, 会将计算结果的过程放入一个单独的线程进行。
 
   对于 ~update~ 中的线程锁， 继续补充知识 !
+
+  看了一下， 完全理解还是有一定难度， 但粗略的理解还是可以了。
+
+  ~cache~ 的更新依赖于 ~running~ 中的键， ~running~ 中的每一个键都是一个锁对象。 通过 ~running~
+  每个键的锁对象来实现对 ~cache~ 中的数据的保护。
+
+  #+BEGIN_SRC python 
+    memoize = Memoize
+
+    re_compile = memoize(re.compile) #@@ threadsafe?
+    re_compile.__doc__ = """
+    A memoized version of re.compile.
+    """
+  #+END_SRC
+  
+  保存每次 ~re.compile~ 的结果。
+
+* class _re_subm_proxy
+  #+BEGIN_SRC python
+    class _re_subm_proxy:
+        def __init__(self): 
+            self.match = None
+        def __call__(self, match): 
+            self.match = match
+            return ''
+  #+END_SRC
+  很明显， 这个类是服务于后面的内容的。
+
+** function re_subm
+   #+BEGIN_SRC python
+     def re_subm(pat, repl, string):
+         compiled_pat = re_compile(pat)
+         proxy = _re_subm_proxy()
+         compiled_pat.sub(proxy.__call__, string)
+         return compiled_pat.sub(repl, string), proxy.match
+   #+END_SRC
+
+   这段代码让我最疑惑的是： ~compiled_pat.sub(proxy.__call__, string)~. 容易明白的是， ~compiled_pat~
+   应该是一个 ~compile~ 对象， 可是 ~sub~ 的第一个参数是什么鬼 ？
+
+   看了一下文档， ~sub~ 的第一个方法除了可以是字符串以外， 还可以是一个方法， 这个方法只能接受
+   一个参数 ~match~.
+
