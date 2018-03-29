@@ -14,6 +14,9 @@
 - [[#class-memoize][class Memoize]]
 - [[#class-_re_subm_proxy][class _re_subm_proxy]]
   - [[#function-re_subm][function re_subm]]
+- [[#function-group][function group]]
+- [[#function-uniq][function uniq]]
+- [[#function-iterview][function iterview]]
 
 * import
   #+BEGIN_SRC python
@@ -428,3 +431,118 @@
    看了一下文档， ~sub~ 的第一个方法除了可以是字符串以外， 还可以是一个方法， 这个方法只能接受
    一个参数 ~match~.
 
+* function group
+  函数功能： 序列分组
+  #+BEGIN_SRC python
+    def group(seq, size): 
+        def take(seq, n):
+            for i in range(n):
+                yield next(seq)
+
+        if not hasattr(seq, 'next'):  
+            seq = iter(seq)
+        while True: 
+            x = list(take(seq, size))
+            if x:
+                yield x
+            else:
+                break
+  #+END_SRC
+  根据指定的 ~size~ 将序列 ~seq~ 分组。
+
+  对于 ~hasattr(seq, 'next')~ 这一段， 之前在 ~py3helpers~ 中都对 ~next~ 和 ~__next__~ 进行了区分， 这里没有。
+  虽然感觉有些有些奇怪， 但是这一点貌似没有影响。 我觉得干脆直接改成 ~iter(seq)~ 应该也不会出错。
+
+  另外， ~iter~ 和 ~next~ 的一种用法还是很有启示的。
+
+* function uniq
+  函数作用： 去重
+  #+BEGIN_SRC python
+    def uniq(seq, key=None):
+        key = key or (lambda x: x)
+        seen = set()
+        result = []
+        for v in seq:
+            k = key(v)
+            if k in seen:
+                continue
+            seen.add(k)
+            result.append(v)
+        return result
+  #+END_SRC
+
+  第一行： ~key = key or (lambda x: x)~. 还可以这样的吗 ？
+
+  尝试：
+  #+BEGIN_SRC python
+    >>> x = 10
+    >>> x = x or 1
+    >>> x
+    10
+    >>> x = None
+    >>> x = x or 1
+    >>> x
+    1
+    >>> x = None or None or 1
+    >>> x
+    1
+  #+END_SRC
+
+  找到文档了： [[https://docs.python.org/2.7/reference/expressions.html#boolean-operations][Boolean operations]]
+
+  不愧是我大 ~Python~.
+
+  后面的代码虽然第一眼感觉可以简化， 毕竟去重很快。 仔细一看， 还保留了原始序列的顺序！ 高级
+
+* function iterview 
+  #+BEGIN_SRC python
+    def iterview(x):
+       """
+       Takes an iterable `x` and returns an iterator over it
+       which prints its progress to stderr as it iterates through.
+       """
+       WIDTH = 70
+
+       def plainformat(n, lenx):
+           return '%5.1f%% (%*d/%d)' % ((float(n)/lenx)*100, len(str(lenx)), n, lenx)
+
+       def bars(size, n, lenx):
+           val = int((float(n)*size)/lenx + 0.5)
+           if size - val:
+               spacing = ">" + (" "*(size-val))[1:]
+           else:
+               spacing = ""
+           return "[%s%s]" % ("="*val, spacing)
+
+       def eta(elapsed, n, lenx):
+           if n == 0:
+               return '--:--:--'
+           if n == lenx:
+               secs = int(elapsed)
+           else:
+               secs = int((elapsed/n) * (lenx-n))
+           mins, secs = divmod(secs, 60)
+           hrs, mins = divmod(mins, 60)
+
+           return '%02d:%02d:%02d' % (hrs, mins, secs)
+
+       def format(starttime, n, lenx):
+           out = plainformat(n, lenx) + ' '
+           if n == lenx:
+               end = '     '
+           else:
+               end = ' ETA '
+           end += eta(time.time() - starttime, n, lenx)
+           out += bars(WIDTH - len(out) - len(end), n, lenx)
+           out += end
+           return out
+
+       starttime = time.time()
+       lenx = len(x)
+       for n, y in enumerate(x):
+           sys.stderr.write('\r' + format(starttime, n, lenx))
+           yield y
+       sys.stderr.write('\r' + format(starttime, n+1, lenx) + '\n')
+  #+END_SRC
+
+  这个函数的作用很明确， 输出效果很 ~nice~.
