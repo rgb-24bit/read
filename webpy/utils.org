@@ -17,6 +17,7 @@
 - [[#function-group][function group]]
 - [[#function-uniq][function uniq]]
 - [[#function-iterview][function iterview]]
+- [[#class-iterbetter][class IterBetter]]
 
 * import
   #+BEGIN_SRC python
@@ -546,3 +547,81 @@
   #+END_SRC
 
   这个函数的作用很明确， 输出效果很 ~nice~.
+
+* class IterBetter
+  这个类的话， 先了解几个 *魔法方法* 吧。
+
+  ~__setattr__~, 这个类里面并没有出现这个方法， 但是对 ~Python~ 设置
+  属性的错误理解让我重新学习了一下这个方法。
+
+  设置类实例的属性的时候， 会调用 ~__setattr__~ 的方法， 如果设置的属性
+  为 ~__setattr__~ 不允许的值会引发错误。 哪怕是在 ~__init__~ 中。
+
+  如果没有编写 ~__setattr__~ 方法， 那么设置任意属性的行为都是允许的。
+
+  而内置类型应该都对 ~__setattr__~ 进行了设置， 不能直接添加内置属性以外的属性。
+
+  ~__nonzero__~, 执行 ~bool(obj)~ 时会调用这个方法， ~Python3~ 改为了 ~__bool__~.
+
+  这个类里面是这样操作的：
+  #+BEGIN_SRC python
+    def __nonzero__(self):
+        ...
+
+    __bool__ = __nonzero__
+  #+END_SRC
+
+  一切皆是对象啊 ！
+
+  其他功能的实现的话， 没有太多好说的了：
+  #+BEGIN_SRC python 
+    class IterBetter:
+        def __init__(self, iterator): 
+            self.i, self.c = iterator, 0
+
+        def first(self, default=None):
+            try:
+                return next(iter(self))
+            except StopIteration:
+                return default
+
+        def __iter__(self): 
+            if hasattr(self, "_head"):
+                yield self._head
+
+            while 1:    
+                yield next(self.i)
+                self.c += 1
+
+        def __getitem__(self, i):
+            #todo: slices
+            if i < self.c: 
+                raise IndexError("already passed "+str(i))
+            try:
+                while i > self.c: 
+                    next(self.i)
+                    self.c += 1
+                # now self.c == i
+                self.c += 1
+                return next(self.i)
+            except StopIteration: 
+                raise IndexError(str(i))
+            
+        def __nonzero__(self):
+            if hasattr(self, "__len__"):
+                return self.__len__() != 0
+            elif hasattr(self, "_head"):
+                return True
+            else:
+                try:
+                    self._head = next(self.i)
+                except StopIteration:
+                    return False
+                else:
+                    return True
+
+        __bool__ = __nonzero__
+
+    iterbetter = IterBetter
+  #+END_SRC
+  
