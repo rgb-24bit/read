@@ -8,7 +8,7 @@
 
   因此， 来阅读一下 ~socketserver~ 的源码， 学习一下。
 
-  另： ~Python2~ 中的模块名为 ~SocketServer~, ~Python3~ 中才是 ~socketserver~.
+  *Note:* ~Python2~ 中的模块名为 ~SocketServer~, ~Python3~ 中才是 ~socketserver~.
 
-  源代码路径： ~Python/Lib~
+  + 源码路径： ~Python/Lib~
 
