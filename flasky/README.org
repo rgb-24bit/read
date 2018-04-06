@@ -1,4 +1,4 @@
-#+TITLE:     flasky 源码阅读
+#+TITLE:      flasky 源码阅读
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
@@ -12,8 +12,10 @@
   + [[https://github.com/lepture/flask-wtf][flask-wtf]] - *Flask* 和 *WTForms* 的简单集成
   + [[https://github.com/mitsuhiko/flask-sqlalchemy][flask-sqlalchemy]] - 将 *SQLAlchemy* 支持添加到 *Flask*
   + [[https://github.com/miguelgrinberg/Flask-Migrate][flask-migrate]] - 数据库迁移
+  + [[https://github.com/smurfix/flask-script][flask-script]] - 为 *Flask* 应用程序编写外部脚本
 
   ~flasky~ 的作者 [[https://github.com/miguelgrinberg][miguelgrinberg]] 还有一篇很好的 ~flask~ 的教程： [[https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-i-hello-world][The Flask Mega-Tutorial]]
 
 * 目前进度
-  
+  + [[file:chapter-1.org][Chapter 1]] - 第一章
+  + [[file:chapter-2.org][Chapter 2]] - 第二章

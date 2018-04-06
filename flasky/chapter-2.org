@@ -1,0 +1,127 @@
+#+TITLE:      Chapter 2
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 第二章
+  第二章有三个标签， 看来有一些内容了：
+
+  + https://github.com/miguelgrinberg/flasky/tree/2a
+  + https://github.com/miguelgrinberg/flasky/tree/2b
+  + https://github.com/miguelgrinberg/flasky/tree/2c
+
+* Tag: 2a
+  相当基础的内容：
+  #+BEGIN_SRC python
+    from flask import Flask
+    app = Flask(__name__)
+
+
+    @app.route('/')
+    def index():
+        return '<h1>Hello World!</h1>'
+  #+END_SRC
+
+  去年尾学过 ~flask~, 但是当时的基础是在不怎么好， 对这一段代码也懵懵懂懂的。
+
+  现在来尝试理解一下：
+
+  #+BEGIN_SRC python
+    app = Flask(__name__)
+  #+END_SRC
+
+  创建 ~Flask~ 实例的过程中使用的参数是 ~__name__~. 说实话， 这是一个让我比较疑惑的参数。
+
+  看了一下文档， ~Flask~ 的第一个参数是 ~import_name~ - 应用程序包的名称。
+
+  ~import_name~ 用于告诉 ~Flask~ 应该在什么地方寻找资源文件。
+
+  尝试了一下：
+  #+BEGIN_EXAMPLE
+    /
+    |___package/
+    |   |__init__.py
+    |
+    |---test.py
+  #+END_EXAMPLE
+
+  在 ~__init__.py~ 中定义函数：
+  #+BEGIN_SRC python
+    def name():
+        print(__name__)
+  #+END_SRC
+
+  在 ~test.py~ 中导入执行的输出是：
+  : package
+
+  这意味着创建 ~Flask~ 的函数或表达式在 ~package~ 中， 执行程序时 ~Flask~ 能够准确的在 ~package~ 中
+  寻找到资源。
+
+  #+BEGIN_SRC python
+    @app.route('/')
+    def index():
+        return '<h1>Hello World!</h1>'
+  #+END_SRC
+
+  大胆的猜测一下， 装饰器 ~app.route~ 在内部调用装饰的函数， 将函数返回的字符串进行处理反馈给客户端。
+
+* Tag: 2b
+  新增的代码：
+  #+BEGIN_SRC python
+    @app.route('/user/<name>')
+    def user(name):
+        return '<h1>Hello, {}!</h1>'.format(name)
+  #+END_SRC
+
+  这里给 ~URL~ 添加变量部分。 变量部分的字段通过类似 ~<variable_name>~ 的方式定义，
+  也可以通过 ~<converter:variable_name>~ 指定一个可选的转换器。
+
+  如：
+  #+BEGIN_SRC python
+    @app.routine('user/<int:index>')
+    def user(index):
+        return '<h1>Hello, {}!</h1>'.format(index)
+  #+END_SRC
+
+  支持的转换器：
+  |-------+----------------------------|
+  | 类型  | 相关                       |
+  |-------+----------------------------|
+  | ~int~   | 接受整数                   |
+  | ~float~ | 同 ~int~ ，但是接受浮点数    |
+  | ~path~  | 和默认的相似，但也接受斜线 |
+  |-------+----------------------------|
+
+  *Note:* 如果 ~url~ 的末尾存在 ~/~ 的话， 访问不存在 ~/~ 的链接时会重定向到有 ~/~ 的链接。
+
+  如： ~/user/name/~, 访问 ~/user/name~ 会重定向到 ~/user/name/~.
+
+  反之， 如果不存在 ~/~ 访问存在 ~/~ 的链接会出错。
+
+* Tag: 2c
+  这里使用了新的扩展 ~flask_script~.
+
+  #+BEGIN_SRC python
+    from flask import Flask
+    from flask_script import Manager
+
+    app = Flask(__name__)
+
+    manager = Manager(app)
+
+
+    @app.route('/')
+    def index():
+        return '<h1>Hello World!</h1>'
+
+
+    @app.route('/user/<name>')
+    def user(name):
+        return '<h1>Hello, %s!</h1>' % name
+
+
+    if __name__ == '__main__':
+        manager.run()
+  #+END_SRC
+
+  不熟 *@_@*.
+
