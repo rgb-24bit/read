@@ -31,6 +31,16 @@
 - [[#function-dateify][function dateify]]
 - [[#function-nthstr][function nthstr]]
 - [[#function-cond][function cond]]
+- [[#class-capturestdout][class CaptureStdout]]
+- [[#class-profile][class Profile]]
+- [[#function-tryall][function tryall]]
+- [[#class-threaddict][class ThreadDict]]
+- [[#function-autoassign][function autoassign]]
+- [[#function-to36][function to36]]
+- [[#function-safemarkdown][function safemarkdown]]
+- [[#function-sendmail][function sendmail]]
+- [[#doctest][doctest]]
+- [[#完成][完成]]
 
 * import
   #+BEGIN_SRC python
@@ -894,4 +904,255 @@
   #+END_SRC
 
   感觉在 ~if-else~ 密集的地方使用应该不错
+
+* class CaptureStdout
+  获取每一个 ~func~ 的输出到 ~stdout~ 并返回输出。
+  #+BEGIN_SRC python
+    class CaptureStdout:
+        def __init__(self, func): 
+            self.func = func
+        def __call__(self, *args, **keywords):
+            out = StringIO()
+            oldstdout = sys.stdout
+            sys.stdout = out
+            try: 
+                self.func(*args, **keywords)
+            finally: 
+                sys.stdout = oldstdout
+            return out.getvalue()
+    capturestdout = CaptureStdout
+  #+END_SRC
+
+  效果就是：
+  #+BEGIN_SRC python
+    >>> def idiot():
+    ...     print("foo")
+    >>> capturestdout(idiot)()
+    'foo\\n'
+  #+END_SRC
+
+  作用的话， 日志 ？
+
+* class Profile
+  #+BEGIN_SRC python
+    class Profile:
+        def __init__(self, func): 
+            self.func = func
+        def __call__(self, *args): ##, **kw):   kw unused
+            import cProfile, pstats, os, tempfile ##, time already imported
+            f, filename = tempfile.mkstemp()
+            os.close(f)
+        
+            prof = cProfile.Profile()
+
+            stime = time.time()
+            result = prof.runcall(self.func, *args)
+            stime = time.time() - stime
+
+            out = StringIO()
+            stats = pstats.Stats(prof, stream=out)
+            stats.strip_dirs()
+            stats.sort_stats('time', 'calls')
+            stats.print_stats(40)
+            stats.print_callers()
+
+            x =  '\n\ntook '+ str(stime) + ' seconds\n'
+            x += out.getvalue()
+
+            # remove the tempfile
+            try:
+                os.remove(filename)
+            except IOError:
+                pass
+            
+            return result, x
+
+    profile = Profile
+  #+END_SRC
+
+  感觉这两个类可以写成装饰器来实现。
+
+  #+BEGIN_SRC python
+    import functools
+
+    def capturestdout(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kw):
+            out = StringIO()
+            oldstdout = sys.stdout
+            sys.stdout = out
+            try:
+                func(*args, **kw)
+            finally:
+                sys.stdout = oldstdout
+            return out.getvalue()
+        return wrapper
+
+    @capturestdout
+    def idiot():
+        print("foo")
+  #+END_SRC
+
+* function tryall  
+  很形象的函数名：
+  #+BEGIN_SRC python
+    def tryall(context, prefix=None):
+        context = context.copy() # vars() would update
+        results = {}
+        for (key, value) in iteritems(context):
+            if not hasattr(value, '__call__'): 
+                continue
+            if prefix and not key.startswith(prefix): 
+                continue
+            print(key + ':', end=" ")
+            try:
+                r = value()
+                dictincr(results, r)
+                print(r)
+            except:
+                print('ERROR')
+                dictincr(results, 'ERROR')
+                print('   ' + '\n   '.join(traceback.format_exc().split('\n')))
+        
+        print('-'*40)
+        print('results:')
+        for (key, value) in iteritems(results):
+            print(' '*2, str(key)+':', value)
+  #+END_SRC
+
+  尝试调用 ~context~ 中的所有对象， 如果不可调用或 ~key~ 的前缀和 ~prefix~ 相同就跳过。
+
+  打印每一次调用的结果， 记录同一结果出现的次数。
+
+  感觉会和前面的 ~class CaptureStdout~ 一块使用。
+
+* class ThreadDict
+  古老的代码， 估计还没有装饰器
+  #+BEGIN_SRC python
+    clear_all = staticmethod(clear_all)
+  #+END_SRC
+
+  防止递归调用吧：
+  #+BEGIN_SRC python
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __setitem__(self, key, value):
+        self.__dict__[key] = value
+
+    def __delitem__(self, key):
+        del self.__dict__[key]
+  #+END_SRC
+  
+* function autoassign
+  #+BEGIN_SRC python
+    def autoassign(self, locals):
+        """
+        Automatically assigns local variables to `self`.
+
+            >>> self = storage()
+            >>> autoassign(self, dict(a=1, b=2))
+            >>> self.a
+            1
+            >>> self.b
+            2
+
+        Generally used in `__init__` methods, as in:
+
+            def __init__(self, foo, bar, baz=1): autoassign(self, locals())
+        """
+        for (key, value) in iteritems(locals):
+            if key == 'self': 
+                continue
+            setattr(self, key, value)
+  #+END_SRC
+
+  自动设置属性， ~locals~ 这个变量 emmm, 试一下：
+  #+BEGIN_SRC python :results output
+    class Test(object):
+        def __init__(self, a, b, c, key=10):
+            print(locals())
+
+    Test(1, 2, 3, 4)
+  #+END_SRC
+
+  *results:*
+  : {'key': 4, 'c': 3, 'b': 2, 'a': 1, 'self': <__main__.Test object at 0x001F59D0>}
+
+  感觉这个函数阔以, 就是不知道安全不安全。
+
+* function to36
+  还以为是到 ~Python 3.6~, 结果是转换为 ~36~ 进制：
+  #+BEGIN_SRC python
+    def to36(q):
+        if q < 0: raise ValueError("must supply a positive integer")
+        letters = "0123456789abcdefghijklmnopqrstuvwxyz"
+        converted = []
+        while q != 0:
+            q, r = divmod(q, 36)
+            converted.insert(0, letters[r])
+        return "".join(converted) or '0'
+  #+END_SRC
+
+  不能负数， 应该是使用范围的问题， 改一个允许负数的试一下：
+  #+BEGIN_SRC python
+    def to36(q):
+        prefix = '-' if q < 0 else str()
+        letters = '0123456789abcdefghijklmnopqrstuvwxyz'
+        converted, q = str(), abs(q)
+        while q != 0:
+            q, r = divmod(q, 36)
+            converted = letters[r] + converted
+        return prefix + (converted or '0')
+  #+END_SRC
+
+* function safemarkdown
+  #+BEGIN_SRC python
+    r_url = re_compile('(?<!\()(http://(\S+))')
+    def safemarkdown(text):
+        """
+        Converts text to HTML following the rules of Markdown, but blocking any
+        outside HTML input, so that only the things supported by Markdown
+        can be used. Also converts raw URLs to links.
+
+        (requires [markdown.py](http://webpy.org/markdown.py))
+        """
+        from markdown import markdown
+        if text:
+            text = text.replace('<', '&lt;')
+            # TODO: automatically get page title?
+            text = r_url.sub(r'<\1>', text)
+            text = markdown(text)
+            return text
+  #+END_SRC
+  
+  ~markdown.py~ 位于 *tools* 文件夹里面就有： https://github.com/webpy/webpy/tree/master/tools
+
+  将 ~markdown~ 转化为 ~html~.
+
+  嗯， 不兼容 ~Python3~
+  
+* function sendmail
+  发送邮件， 还有一个相关的类 ~_EmailMessage~
+
+* doctest
+  最后的代码
+  #+BEGIN_SRC python
+    if __name__ == "__main__":
+        import doctest
+        doctest.testmod()
+  #+END_SRC
+
+  ~doctest~, 测试交互式 ~Python~ 示例。
+
+  执行文档字符串中的交互式实例， 返回测试结果是否正确。
+
+  原来还有这个库 ！
+
+* 完成
+  终于， 完成了。
+
+  好长啊！！！！
+
+  但也有不少收获， 还是可以的。
 
