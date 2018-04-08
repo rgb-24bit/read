@@ -1,0 +1,113 @@
+#+TITLE:      Chapter 3
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 第三章
+  第三章有 5 个标签， 内容估计不少：
+  + https://github.com/miguelgrinberg/flasky/tree/3a
+  + https://github.com/miguelgrinberg/flasky/tree/3b
+  + https://github.com/miguelgrinberg/flasky/tree/3c
+  + https://github.com/miguelgrinberg/flasky/tree/3d
+  + https://github.com/miguelgrinberg/flasky/tree/3e
+
+* Tag: 3a
+  ~3a~ 的 ~Python~ 部分的源码：
+  #+BEGIN_SRC python
+    from flask import Flask, render_template
+
+    app = Flask(__name__)
+
+
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+
+
+    @app.route('/user/<name>')
+    def user(name):
+        return render_template('user.html', name=name)
+  #+END_SRC
+
+  对于 ~template~, ~flask~ 默认的渲染引擎是 ~Jinja2~.
+
+  渲染引擎， 感觉本质上就是对 *字符串* 进行处理， 通过对字符串中进行了特殊标记的
+  部分进行转换， 返回我们想要的新的字符串。
+
+* Tag: 3b
+  又多了一个扩展：
+  #+BEGIN_SRC python
+    from flask_bootstrap import Bootstrap
+
+    app = Flask(__name__)
+
+    bootstrap = Bootstrap(app)
+  #+END_SRC
+
+  这个扩展还是不熟。
+
+  看了一下， ~star~ 有 ~1.1k~, 不少了。
+
+  在 ~Python~ 代码部分没有什么使用， 在 ~template~ 部分看到了使用：
+  #+BEGIN_SRC html
+    {% extends "bootstrap/base.html" %}
+
+    {% block title %}Flasky{% endblock %}
+
+    {% block navbar %}
+    <div class="navbar navbar-inverse" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Flasky</a>
+            </div>
+            <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Home</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h1>Hello, {{ name }}!</h1>
+        </div>
+    </div>
+    {% endblock %}
+  #+END_SRC
+  ~user.html~ 的内容。
+
+  目测 ~flask-bootstrap~ 提供了一个基础的网页模板， 估计是个好东西， 了解一下 ！
+
+* Tag: 3c
+  添加了一个很有用的功能：
+  #+BEGIN_SRC python
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('404.html'), 404
+
+
+    @app.errorhandler(500)
+    def internal_server_error(e):
+        return render_template('500.html'), 500
+  #+END_SRC
+
+  直白的代码， 原来 ~flask~ 还有这个装饰器。
+
+  错误处理器使用 ~errorhandler~ 注册， 返回值除了要显示的网页以外还需要对应的 ~HTTP~ 状态码。
+
+  ~template~ 部分将模板整理了一下， 主要将内容集中到了 ~base.html~ 中。
+
+* Tag: 3d
+  这一节貌似没什么变化， 添加了 ~static~ 文件夹， 主要就是 *构造 url* 的使用了
+
+* Tag: 3e
+  新的扩展 ~flask_moment~, 用来格式化时间和日期
+
