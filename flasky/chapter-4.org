@@ -1,0 +1,119 @@
+#+TITLE:      Chapter 4
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 第四章
+  第四章有三个标签：
+  + https://github.com/miguelgrinberg/flasky/tree/4a
+  + https://github.com/miguelgrinberg/flasky/tree/4b
+  + https://github.com/miguelgrinberg/flasky/tree/4c
+
+* Tag: 4a
+  新的扩展： ~flask_wtf~. 提供 ~wtform~ 的支持。
+
+  #+BEGIN_SRC python
+    ...
+
+    from flask_wtf import FlaskForm
+    from wtforms import StringField, SubmitField
+    from wtforms.validators import DataRequired
+
+    ...
+
+    class NameForm(FlaskForm):
+        name = StringField('What is your name?', validators=[DataRequired()])
+        submit = SubmitField('Submit')
+
+    ...
+
+    @app.route('/', methods=['GET', 'POST'])
+    def index():
+        name = None
+        form = NameForm()
+        if form.validate_on_submit():
+            name = form.name.data
+            form.name.data = ''
+        return render_template('index.html', form=form, name=name)
+  #+END_SRC
+  
+  构造了 ~Form~ 实例后是可以多数据进行设置后在渲染模板的。
+
+  *base.html*:
+  #+BEGIN_SRC html
+    {% extends "bootstrap/base.html" %}
+  #+END_SRC
+
+  *index.html*:
+  #+BEGIN_SRC html
+    {% extends "base.html" %}
+    {% import "bootstrap/wtf.html" as wtf %}
+
+    ...
+
+    {{ wtf.quick_form(form) }}
+  #+END_SRC
+
+  还可以 ~import~.
+
+  ~wtf.quick_form(form)~ 使用了 ~flask-bootstrap~ 扩展来快速渲染表单。
+
+* Tag: 4b
+  新的重要功能： ~session~
+  #+BEGIN_SRC python
+    from flask import ..., session, ...
+
+    ...
+
+    @app.route('/', methods=['GET', 'POST'])
+    def index():
+        ...
+        if form.validate_on_submit():
+            ...
+            session['name'] = form.name.data
+        return render_template('index.html', form=form, name=session.get('name'))
+  #+END_SRC
+  
+  感觉模板部分应该有对应的操作：
+  #+BEGIN_SRC html
+    <h1>Hello, {% if name %}{{ name }}{% else %}Stranger{% endif %}!</h1>
+  #+END_SRC
+
+  感觉这里最重要的就是关于 ~session~ 的概念了。
+
+  这方面还没了解过， 简单的 ~Google~ 了一下：
+  1. ~session~ 是在 *服务器* 端对用户信息进行保存的一种数据结构， 可能有多种保存方式
+  2. ~cookie~ 是在 *客户端* 对信息进行的保存
+
+  + [[https://www.zhihu.com/question/19786827][COOKIE和SESSION有什么区别？ - 知乎]]
+
+* Tag: 4c
+  消息闪现 ~flash~
+  #+BEGIN_SRC python
+    from flask import ..., flash
+
+    ...
+
+    @app.route('/', methods=['GET', 'POST'])
+    def index():
+        form = NameForm()
+        if form.validate_on_submit():
+            old_name = session.get('name')
+            if old_name is not None and old_name != form.name.data:
+                flash('Looks like you have changed your name!')
+            session['name'] = form.name.data
+            return redirect(url_for('index'))
+        return render_template('index.html', form=form, name=session.get('name'))
+  #+END_SRC
+
+  模板部分的对应操作：
+  #+BEGIN_SRC html
+    {% for message in get_flashed_messages() %}
+        <div class="alert alert-warning">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            {{ message }}
+        </div>
+    {% endfor %}
+  #+END_SRC
+
+  应该是可以 ~flash~ 多条消息。
+
