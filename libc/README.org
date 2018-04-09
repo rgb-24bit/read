@@ -1,0 +1,8 @@
+#+TITLE:      libc 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  不准备阅读全部的源码， 但一定程度上的浏览对 C 语言的学习很有帮助。
+
+  为了简单， 没有选择某一种具体的实现， 而是选择 [[https://book.douban.com/subject/3775842/][C 标准库]] 上的源码来阅读。
