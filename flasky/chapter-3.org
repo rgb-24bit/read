@@ -2,14 +2,6 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
-* 第三章
-  第三章有 5 个标签， 内容估计不少：
-  + https://github.com/miguelgrinberg/flasky/tree/3a
-  + https://github.com/miguelgrinberg/flasky/tree/3b
-  + https://github.com/miguelgrinberg/flasky/tree/3c
-  + https://github.com/miguelgrinberg/flasky/tree/3d
-  + https://github.com/miguelgrinberg/flasky/tree/3e
-
 * Tag: 3a
   ~3a~ 的 ~Python~ 部分的源码：
   #+BEGIN_SRC python
@@ -32,6 +24,8 @@
 
   渲染引擎， 感觉本质上就是对 *字符串* 进行处理， 通过对字符串中进行了特殊标记的
   部分进行转换， 返回我们想要的新的字符串。
+
+  通过函数 ~render_template~ 对模板进行渲染， 默认保存模板的文件夹是 ~templates~.
 
 * Tag: 3b
   又多了一个扩展：

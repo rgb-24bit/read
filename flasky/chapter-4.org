@@ -2,12 +2,6 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
-* 第四章
-  第四章有三个标签：
-  + https://github.com/miguelgrinberg/flasky/tree/4a
-  + https://github.com/miguelgrinberg/flasky/tree/4b
-  + https://github.com/miguelgrinberg/flasky/tree/4c
-
 * Tag: 4a
   新的扩展： ~flask_wtf~. 提供 ~wtform~ 的支持。
 
@@ -35,7 +29,7 @@
             form.name.data = ''
         return render_template('index.html', form=form, name=name)
   #+END_SRC
-  
+
   构造了 ~Form~ 实例后是可以多数据进行设置后在渲染模板的。
 
   *base.html*:

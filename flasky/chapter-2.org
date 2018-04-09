@@ -2,13 +2,6 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
-* 第二章
-  第二章有三个标签， 看来有一些内容了：
-
-  + https://github.com/miguelgrinberg/flasky/tree/2a
-  + https://github.com/miguelgrinberg/flasky/tree/2b
-  + https://github.com/miguelgrinberg/flasky/tree/2c
-
 * Tag: 2a
   相当基础的内容：
   #+BEGIN_SRC python
