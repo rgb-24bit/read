@@ -105,3 +105,33 @@
 * Tag: 3e
   新的扩展 ~flask_moment~, 用来格式化时间和日期
 
+* Summary
+  1. 使用 templates:
+     #+BEGIN_SRC python
+       from flask import Flask, render_template
+
+       app = Flask(__name__)
+
+       @app.route('/user/<name>')
+       def user(name):
+           return render_template('user.html', name=name)
+     #+END_SRC
+
+     + 默认模板文件夹 ~templates~.
+
+     + [[https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-ii-templates][templates]]
+
+  2. 使用装饰器 ~app.errorhandler~:
+     #+BEGIN_SRC python
+       @app.errorhandler(404)
+       def page_not_found(e):
+           return render_template('404.html'), 404
+     #+END_SRC
+
+  3. 使用 ~url_for~:
+     #+BEGIN_SRC python
+       from flask import url_for
+     #+END_SRC
+
+     + [[http://docs.jinkan.org/docs/flask/quickstart.html#url][构造 URL]]
+

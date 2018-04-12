@@ -111,3 +111,40 @@
 
   应该是可以 ~flash~ 多条消息。
 
+* Summary
+  1. 使用 ~flask_wtf~:
+     + [[https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms][web forms]]
+
+  2. 设置请求方法：
+     #+BEGIN_SRC python
+       @app.route('/', methods=['GET', 'POST'])
+       def index():
+           ...
+     #+END_SRC
+
+  3. 使用 ~session~:
+     #+BEGIN_SRC python
+       from flask import session
+
+       session[key] = val
+     #+END_SRC
+
+  4. 使用 ~flash~:
+     #+BEGIN_SRC python
+       flash('Looks like you have changed your name!')
+     #+END_SRC
+
+     #+BEGIN_SRC html
+       {% for message in get_flashed_messages() %}
+       <div class="alert alert-warning">
+         <button type="button" class="close" data-dismiss="alert">&times;</button>
+         {{ message }}
+       </div>
+       {% endfor %}
+     #+END_SRC
+
+  5. 使用 ~redirect~:
+     #+BEGIN_SRC python
+       return redirect(url_for('index'))
+     #+END_SRC
+

@@ -114,4 +114,25 @@
   4. 迁移脚本回退， 这个工具会针对数据库的变化创建不同版本的脚本。 可以
      使用 ~flask downgrade~ 指令将版本回退到是一个版本。
 
+* Summary
+  1. 简单使用：
+     + [[https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iv-database][Database]]
+
+  2. 插入， 更新， 删除：
+     #+BEGIN_SRC python
+       # insert
+       db.session.add(...)
+       db.session.commit()
+
+       # update
+       obj = Obj.query.filter_by(name=name).first()
+       obj.xxx = xxx
+       db.session.add(obj)
+       db.session.commit()
+
+       # delete
+       obj = Obj.query.filter_by(name=name).first()
+       db.session.delete(obj)
+       db.session.commit()
+     #+END_SRC
 

@@ -10,11 +10,11 @@
   ~flasky~ 的作者 [[https://github.com/miguelgrinberg][miguelgrinberg]] 还有一篇很好的 ~flask~ 的教程： [[https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-i-hello-world][The Flask Mega-Tutorial]]
 
 * 目前进度
-  + [[file:chapter-1.org][Chapter 1]] - 第一章
-  + [[file:chapter-2.org][Chapter 2]] - 第二章
-  + [[file:chapter-3.org][Chapter 3]] - 第三章
-  + [[file:chapter-4.org][Chapter 4]] - 第四章
-  + [[file:chapter-5.org][Chapter 5]] - 第五章
+  + [[file:chapter-1.org][Chapter 1]] - /None./
+  + [[file:chapter-2.org][Chapter 2]] - /flask, flask_script./
+  + [[file:chapter-3.org][Chapter 3]] - /flask(Jinja2), flask_bootstrap, flask_moment./
+  + [[file:chapter-4.org][Chapter 4]] - /flask, flask_wtf./
+  + [[file:chapter-5.org][Chapter 5]] - /flask_sqlalchemy, flask_migrate./
 
 * 相关链接
   + [[https://github.com/pallets/flask][flask]] - *Flask* 源码链接
