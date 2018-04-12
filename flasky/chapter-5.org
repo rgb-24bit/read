@@ -1,0 +1,117 @@
+#+TITLE:      Chapter 5
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Tag: 5a
+  该来的还是来了， 数据库相关的扩展 ~flask_sqlalchemy~.
+
+  遇到 ~sqlalchemy~ 之前是万万没想到数据库还可以这样操作的。
+
+  #+BEGIN_SRC python
+    from flask_sqlalchemy import SQLAlchemy
+
+    basedir = os.path.abspath(os.path.dirname(__file__))
+
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'hard to guess string'
+    app.config['SQLALCHEMY_DATABASE_URI'] =\
+        'sqlite:///' + os.path.join(basedir, 'data.sqlite')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    db = SQLAlchemy(app)
+
+    class Role(db.Model):
+        __tablename__ = 'roles'
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String(64), unique=True)
+        users = db.relationship('User', backref='role')
+
+        def __repr__(self):
+            return '<Role %r>' % self.name
+
+
+    class User(db.Model):
+        __tablename__ = 'users'
+        id = db.Column(db.Integer, primary_key=True)
+        username = db.Column(db.String(64), unique=True, index=True)
+        role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+
+        def __repr__(self):
+            return '<User %r>' % self.username
+  #+END_SRC
+
+  这里就是创建数据库的过程， 比较坑的一个地方是， 默认的 *表名* 是小写的。
+
+  在 ~relationship~ 函数里面使用的是类名， 而 ~ForeignKey~ 里面用的是表名。
+
+  对于 ~sqlite~ 数据库的话， ~sqlite:///~ 是在磁盘上创建数据库文件， 而 ~sqlite://~ 是在
+  内存中创建数据库， 方便测试。
+
+* Tag: 5b
+  这一节涉及到数据库的使用了：
+  #+BEGIN_SRC python
+    @app.route('/', methods=['GET', 'POST'])
+    def index():
+        form = NameForm()
+        if form.validate_on_submit():
+            user = User.query.filter_by(username=form.name.data).first()
+            if user is None:
+                user = User(username=form.name.data)
+                db.session.add(user)
+                db.session.commit()
+                session['known'] = False
+            else:
+                session['known'] = True
+            session['name'] = form.name.data
+            return redirect(url_for('index'))
+        return render_template('index.html', form=form, name=session.get('name'),
+                               known=session.get('known', False))
+  #+END_SRC
+
+  对于关系的定义部分有一点修改：
+  #+BEGIN_SRC python
+    # old
+    users = db.relationship('User', backref='role')
+
+    # new
+    users = db.relationship('User', backref='role', lazy='dynamic')
+  #+END_SRC
+
+  添加 ~lazy~ 参数可以使用 ~Role.users.all()~ 的形式访问对应的 ~User~.
+
+  不得不说， ~sqlalchemy~ 操作数据库很方便。
+
+* Tag: 5c
+  差点没看出来有什么变化：
+  #+BEGIN_SRC python
+    @app.shell_context_processor
+    def make_shell_context():
+        return dict(db=db, User=User, Role=Role)
+  #+END_SRC
+
+  这是一个好东西, 运行 ~flask shell~ 可以打开一个包含了提供了上下文的 ~shell~.
+
+  可以在 ~shell~ 里很方便的测试数据库。
+
+* Tag: 5d
+  数据库的迁移 ~flask_migrate.~
+
+  这个工具的使用很方便。 代码不多：
+  #+BEGIN_SRC python
+    from flask_migrate import Migrate
+
+    ...
+
+    db = SQLAlchemy(app)
+    migrate = Migrate(app, db)
+  #+END_SRC
+
+  主要还是使用命令行来操作， 操作之前需要设置环境变量 ~FLASK_APP=script.py~.
+
+  1. 第一步操作， 初始化： ~flask db init~
+  2. 生成数据库的迁移脚本： ~flask db migrate~
+  3. 应用数据库脚本： ~flask db upgrade~
+  4. 迁移脚本回退， 这个工具会针对数据库的变化创建不同版本的脚本。 可以
+     使用 ~flask downgrade~ 指令将版本回退到是一个版本。
+
+
