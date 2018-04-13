@@ -15,6 +15,7 @@
   + [[file:chapter-3.org][Chapter 3]] - /flask(Jinja2), flask_bootstrap, flask_moment./
   + [[file:chapter-4.org][Chapter 4]] - /flask, flask_wtf./
   + [[file:chapter-5.org][Chapter 5]] - /flask_sqlalchemy, flask_migrate./
+  + [[file:chapter-6.org][Chapter 6]] - /flask_mail./
 
 * 相关链接
   + [[https://github.com/pallets/flask][flask]] - *Flask* 源码链接
@@ -23,5 +24,6 @@
   + [[https://github.com/miguelgrinberg/Flask-Migrate][flask-migrate]] - 数据库迁移
   + [[https://github.com/smurfix/flask-script][flask-script]] - 为 *Flask* 应用程序编写外部脚本
   + [[https://github.com/mbr/flask-bootstrap][flask-bootstrap]] - 提供 *bootstrap* 基础模板的扩展
-  + [[https://github.com/miguelgrinberg/Flask-Moment][flask_moment]] - 格式化日期和时间
+  + [[https://github.com/miguelgrinberg/Flask-Moment][flask-moment]] - 格式化日期和时间
+  + [[https://github.com/mattupstate/flask-mail][flask-mail]] - 提供发送电子邮件的支持
 
