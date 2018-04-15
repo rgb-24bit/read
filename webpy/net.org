@@ -2,3 +2,173 @@
 #+AUTHOR:     rgb-24bit
 #+EMAIL:      rgb-24bit@foxmail.com
 
+* import
+  #+BEGIN_SRC python
+    import urllib, time
+    import datetime
+    import re
+    import socket
+
+    try:
+        from urllib.parse import quote
+    except ImportError:
+        from urllib import quote
+
+    from .py3helpers import PY2
+  #+END_SRC
+  
+  导入的这几个模块都比较熟悉了， 代码量也比较少， 应该比上一个模块的源码好读。
+
+  + *quote*: 使用 ~%xx~ 转义替换字符串中的特殊字符.
+    
+    与之相关的还有 ~unquote~, ~urlencode~, 文档 -  [[https://docs.python.org/2/library/urllib.html#utility-functions][Utility functions]]
+
+* function validip6addr
+  检查是否为有效的 ~ip6~ 地址， 测试方法用了一个我不熟悉的函数：
+  #+BEGIN_SRC python
+    def validip6addr(address):
+        try:
+            socket.inet_pton(socket.AF_INET6, address)
+        except (socket.error, AttributeError):
+            return False
+
+        return True
+  #+END_SRC
+
+  + ~socket.inet_pton~ :: 将 ~IP~ 地址从其特定于家庭的字符串格式转换为打包的二进制格式。
+
+  使用这个方法来测试地址是否有效确实很方便， 我来估计就是根据格式来操作了。
+
+  ~Python~ 的标准库确实已经帮我们解决了很多问题了。
+
+  + [[https://docs.python.org/3.6/library/socket.html#socket.inet_aton][相关函数文档]]
+
+* function validipaddr
+  检查是否为有效的 ~ip4~ 地址， 操作方式和上一个函数不一样：
+  #+BEGIN_SRC python
+    def validipaddr(address):
+        try:
+            octets = address.split('.')
+            if len(octets) != 4:
+                return False
+            for x in octets:
+                if not (0 <= int(x) <= 255):
+                    return False
+        except ValueError:
+            return False
+        return True
+  #+END_SRC
+
+  不是有个和 ~socket.inet_pton~ 类似的函数 ~socket.inet_aton~ 吗。
+
+  试一下：
+  #+BEGIN_SRC python
+    def validipaddr(address):
+        try:
+            socket.inet_aton(address)
+        except (socket.error, AttributeError):
+            return False
+
+        return True
+  #+END_SRC
+
+  测试：
+  #+BEGIN_SRC python
+    >>> validipaddr('1.1.1.1')
+    True
+    >>> validipaddr('1.1.1.')
+    False
+    >>> validipaddr('192.168.1.1')
+    True
+    >>> validipaddr('192.168.1.256')
+    False
+  #+END_SRC
+
+  这样操作是可以的， 当然了， 作者实现的方式更加通用。
+
+* function validipport
+  检查端口是否有效：
+  #+BEGIN_SRC python
+    def validipport(port):
+        try:
+            if not (0 <= int(port) <= 65535):
+                return False
+        except ValueError:
+            return False
+        return True
+  #+END_SRC
+
+  一直感觉僵硬的一点就是， ~socket~ 的 ~address~ 参数中， ~ip~ 是字符串而 ~port~ 是整型......
+
+* function validip
+  获取有效的 ~ip~
+  #+BEGIN_SRC python
+    def validip(ip, defaultaddr="0.0.0.0", defaultport=8080):
+        """
+        Returns `(ip_address, port)` from string `ip_addr_port`
+
+            >>> validip('1.2.3.4')
+            ('1.2.3.4', 8080)
+            >>> validip('80')
+            ('0.0.0.0', 80)
+            >>> validip('192.168.0.1:85')
+            ('192.168.0.1', 85)
+            >>> validip('::')
+            ('::', 8080)
+            >>> validip('[::]:88')
+            ('::', 88)
+            >>> validip('[::1]:80')
+            ('::1', 80)
+
+        """
+        addr = defaultaddr
+        port = defaultport
+
+        #Matt Boswell's code to check for ipv6 first
+        match = re.search(r'^\[([^]]+)\](?::(\d+))?$',ip) #check for [ipv6]:port
+        if match:
+            if validip6addr(match.group(1)):
+                if match.group(2):
+                    if validipport(match.group(2)): return (match.group(1),int(match.group(2)))
+                else:
+                    return (match.group(1),port)
+        else:
+            if validip6addr(ip): return (ip,port)
+        #end ipv6 code
+
+        ip = ip.split(":", 1)
+        if len(ip) == 1:
+            if not ip[0]:
+                pass
+            elif validipaddr(ip[0]):
+                addr = ip[0]
+            elif validipport(ip[0]):
+                port = int(ip[0])
+            else:
+                raise ValueError(':'.join(ip) + ' is not a valid IP address/port')
+        elif len(ip) == 2:
+            addr, port = ip
+            if not validipaddr(addr) or not validipport(port):
+                raise ValueError(':'.join(ip) + ' is not a valid IP address/port')
+            port = int(port)
+        else:
+            raise ValueError(':'.join(ip) + ' is not a valid IP address/port')
+        return (addr, port)
+  #+END_SRC
+
+  这个源码的阅读很是需要参考一下文档字符串。
+
+  ...
+
+  看这个函数的源码还是需要一点时间理解的， 功能很强大， 代码理解起来就比较难了。
+
+  同时对 ~ipv6~ 和 ~ipv4~ 的地址进行了检查并返回需要的 ~addr~.
+
+  感觉， 调整一下函数的结构是可以的：
+  #+BEGIN_SRC python
+    def validip(ip, defaultaddr="0.0.0.0", defaultport=8080):
+        def validipv6(ip, addr, port):
+  #+END_SRC
+
+  才怪......
+
