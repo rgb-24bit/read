@@ -43,6 +43,9 @@
 
   + [[https://docs.python.org/3.6/library/socket.html#socket.inet_aton][相关函数文档]]
 
+  Update: <2018-04-16 周一>:
+  ~Windows~ 平台 ~Python2~ 没有 ~socket.into_pton~...
+
 * function validipaddr
   检查是否为有效的 ~ip4~ 地址， 操作方式和上一个函数不一样：
   #+BEGIN_SRC python
