@@ -1,0 +1,40 @@
+#+TITLE:      db
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of contents                                       :TOC_4_gh:noexport:
+- [[#import][import]]
+
+* import
+  ~1490~ 行......
+
+  #+BEGIN_SRC python
+    from __future__ import print_function
+    from .utils import threadeddict, storage, iters, iterbetter, safestr, safeunicode
+    import datetime, time, os, urllib, re
+
+    from .py3helpers import PY2, string_types, numeric_types, iteritems
+
+    try:
+        from urllib import parse as urlparse
+        from urllib.parse import unquote
+    except ImportError:
+        import urlparse
+        from urllib import unquote
+
+    try:
+        import ast
+    except ImportError:
+        ast = None
+
+    try:
+        # db module can work independent of web.py
+        from .webapi import debug, config
+    except:
+        import sys
+        debug = sys.stderr
+        config = storage()
+  #+END_SRC
+
+  看到 ~webapi~ 了， 还是先去看 ~webapi~ 的源码好了.
+

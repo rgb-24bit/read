@@ -1,0 +1,80 @@
+#+TITLE:      webapi
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* import
+  这个模块是对 ~WSGI~ 的封装， 这是我阅读 ~webpy~ 源码的一个很重要的原因： 了解 ~WSGI~.
+
+  代码量只有 ~500~ 来行， 不多。
+
+  依赖也少， 主要是标准库：
+  #+BEGIN_SRC python
+    from __future__ import print_function
+
+    import sys, cgi, pprint, urllib
+    from .utils import storage, storify, threadeddict, dictadd, intget, safestr
+
+    from .py3helpers import PY2, urljoin, string_types
+
+    try:
+        from urllib.parse import unquote, quote
+        from http.cookies import Morsel
+    except ImportError:
+        from urllib import unquote, quote
+        from Cookie import Morsel
+
+    from io import StringIO, BytesIO
+  #+END_SRC
+
+  有几个不熟悉的模块：
+  + ~cgi~ - 了解了一下 ~CGI~ 和 ~WSGI~ 的关系， 看样子处除了 ~WSGI~, ~CGI~ 还需要了解一下
+  + ~pprint~ - 更好的输出， 看见过几次了， 这次来了解一下
+  + ~Cookie~ - 好像在阅读 [[file:../flasky/README.org][flasky]] 源码的过程中了解了一下 ~Cookie~ 的概念， 这里可以回顾一下
+
+  对于 ~io~ 这个模块， 知道是干啥的， 但是还没用过。
+
+* config
+  #+BEGIN_SRC python
+    config = storage()
+    config.__doc__ = """
+    A configuration object for various aspects of web.py.
+
+    `debug`
+       : when True, enables reloading, disabled template caching and sets internalerror to debugerror.
+    """
+  #+END_SRC
+
+  这个是 ~storage~ 的实例吧， ~__doc__~ 影响范围：
+  #+BEGIN_SRC python :results output
+    class Test(object):
+        """ Test __doc__."""
+        pass
+
+    t = Test()
+    t.__doc__ = """t.__doct__"""
+
+    print(Test.__doc__)
+    print(t.__doc__)
+  #+END_SRC
+
+  *输出*:
+  :  Test __doc__.
+  : t.__doct__
+ 
+  还是去了解一下 ~__xxx__~ 的变量好了。
+
+* class HTTPError
+  #+BEGIN_SRC python
+    class HTTPError(Exception):
+        def __init__(self, status, headers={}, data=""):
+            ctx.status = status
+            for k, v in headers.items():
+                header(k, v)
+            self.data = data
+            Exception.__init__(self, status)
+  #+END_SRC
+
+  这么久了， 还没继承过 ~Exception~.
+
+  调用了好几个后面的东西， 先看一下后面再说。
+
