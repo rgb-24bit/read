@@ -78,3 +78,36 @@
 
   调用了好几个后面的东西， 先看一下后面再说。
 
+* function _status_code
+  动态创建类， 代码阅读起来有点费力：
+  #+BEGIN_SRC python
+    def _status_code(status, data=None, classname=None, docstring=None):
+        if data is None:
+            data = status.split(" ", 1)[1]
+        classname = status.split(" ", 1)[1].replace(' ', '') # 304 Not Modified -> NotModified
+        docstring = docstring or '`%s` status' % status
+
+        def __init__(self, data=data, headers={}):
+            HTTPError.__init__(self, status, headers, data)
+
+        # trick to create class dynamically with dynamic docstring.
+        return type(classname, (HTTPError, object), {
+            '__doc__': docstring,
+            '__init__': __init__
+        })
+
+    ok = OK = _status_code("200 OK", data="")
+    created = Created = _status_code("201 Created")
+    accepted = Accepted = _status_code("202 Accepted")
+    nocontent = NoContent = _status_code("204 No Content")
+  #+END_SRC
+
+  这种创建类的方式的话......
+
+  前面的 ~_~ 还是很有必要的 ！
+
+* class Redirect
+  ~HTTPError~ 的子类， 看类的名字我感觉猜不出来。
+
+  简单的看了一下代码， 目测属于我的知识盲区范围了， 补充一下相关知识在继续。
+
