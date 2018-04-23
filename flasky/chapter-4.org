@@ -148,3 +148,11 @@
        return redirect(url_for('index'))
      #+END_SRC
 
+     + Update 2018-04-23 :: 当初还做了笔记的 /QAQ/, 这次写代码的时候使用 ~redirect~ 出现了错误。
+
+          首先， 每个路由都应该有返回的响应信息。 而 ~redirect~ 不会自动跳转到某个链接， 而更像是获取那个链接
+          的内容并返回。
+
+          一次使用 ~redirect~ 应该是 ~return redirect~. 另外， ~redirect~ 的参数最好用 ~url_for~ 进行生成， 不然可能会重定向到
+          不存在的页面。
+
