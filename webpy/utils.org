@@ -1048,6 +1048,9 @@
   
   新的理解： [[file:webapi.org::#ctx][webapi-ctx]]
   
+  再一次浏览了这个类， 不得不说， 使用了很多东西， 这时才注意到 ~_instances~ 是一个
+  *保护变量*, 这意味着这个类的实例 *无法直接访问这一属性*, 较为安全。
+
 * function autoassign
   #+BEGIN_SRC python
     def autoassign(self, locals):
