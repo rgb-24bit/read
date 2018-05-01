@@ -10,7 +10,8 @@
   - [[#function-header][function header]]
   - [[#理解][理解]]
 - [[#function-_status_code][function _status_code]]
-- [[#class-redirect][class Redirect]]
+- [[#class-redirect-and-more][class Redirect and more]]
+- [[#question][Question]]
 
 * import
   这个模块是对 ~WSGI~ 的封装， 这是我阅读 ~webpy~ 源码的一个很重要的原因： 了解 ~WSGI~.
@@ -176,6 +177,8 @@
 
    这个应该设置 [[https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Headers][HTTP Headers]] 用的。
 
+  在设置的时候都保证了 *键* 和 *值* 为 *str*.
+
 ** 理解
    可以看到， ~ThreadedDict~ 对设置属性很宽松。
 
@@ -211,8 +214,29 @@
 
   前面的 ~_~ 还是很有必要的 ！
 
-* class Redirect
-  ~HTTPError~ 的子类， 看类的名字我感觉猜不出来。
+* class Redirect and more
+  后面连续很多个类都是与 ~HTTP~ 返回的状态码相关的, 都属于 ~HTTPError~ 的子类。
 
-  简单的看了一下代码， 目测属于我的知识盲区范围了， 补充一下相关知识在继续。
+  所以， 这些类或多或少都会影响 ~ctx~.
+
+  看到这么多东西， 设计到多线程， 上下文， 变量保护。
+
+  感觉源码的阅读有点困难了， 这个模块的代码看了过后就先去补一下基础好了。
+
+  对于状态码相关的内容， 感觉
+  #+BEGIN_SRC python
+    BaseHTTPRequestHandler.responses
+  #+END_SRC
+  会有帮助。
+
+* Question
+  这个模块的源码有点读不下去了， 遇到了一些问题：
+
+  + HTTP 协议相关的内容， 如 ~header~, ~状态码~ 等
+  + ~Python~ 内置的类似 ~__xxx__~ 的变量的含义与作用
+  + 多线程与变量保护
+  + ~cookie~ 和 ~session~.
+  + ~WSGI~
+  
+  恰逢考试周， 这些问题就先慢慢解决吧...
 
