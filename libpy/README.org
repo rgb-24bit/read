@@ -1,0 +1,12 @@
+#+TITLE:      Python 标准库源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  通过阅读部分 ~Python~ 标准库的源码来学习 ~Python~ 的使用。
+
+  目前准备阅读的模块：
+  + ~socketserver~ 网络服务器框架
+  + ~shutil~ 文件操作
+  + ~_thread_local~ *ThreadLocal*
+

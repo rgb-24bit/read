@@ -5,7 +5,7 @@
   + [[file:requests/README.org][requests]] - ~Pythonic~ 的类库， 了解一下
   + [[file:webpy/README.org][webpy]] - 简单而直接的 ~Python web~ 框架， 了解一下
   + [[file:flasky/README.org][flasky]] - ~Flask Web Development~ 的源代码示例， 了解一下
-  + [[file:socketserver/README.org][socketserver]] - ~Python~ 网络服务器框架， 了解一下
+  + [[file:libpy/README.org][libpy]] - ~Python~ 标准库， 了解一下
     
 * C-C++
   + [[file:c-algorithms/README.org][c-algorithms]] - ~C~ 实现的数据结构与算法，  了解一下
