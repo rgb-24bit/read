@@ -4,9 +4,174 @@
 
 * Table of Contents                                       :TOC_4_gh:noexport:
 - [[#reread][Reread]]
+- [[#import][import]]
+- [[#instances][instances]]
+  - [[#config][config]]
+  - [[#ctx][ctx]]
+- [[#class-httperror][class HTTPError]]
+  - [[#function-header][function header]]
 
 * Reread
   前一段时间尝试了阅读 ~webapi~ 模块的源码， 但由于相关知识不足的问题导致阅读质量
   很差， 因此选择重读。
 
   前一段时间的阅读笔记： [[file:trash/webapi.org][webapi]].
+  
+* import
+  这个模块依赖的模块：
+  #+BEGIN_SRC python
+    from __future__ import print_function
+
+    import sys, cgi, pprint, urllib
+    from .utils import storage, storify, threadeddict, dictadd, intget, safestr
+
+    from .py3helpers import PY2, urljoin, string_types
+
+    try:
+        from urllib.parse import unquote, quote
+        from http.cookies import Morsel
+    except ImportError:
+        from urllib import unquote, quote
+        from Cookie import Morsel
+
+    from io import StringIO, BytesIO
+  #+END_SRC
+
+  依赖的模块中， ~utils~ 和 ~py3helpers~ 的源码已经读过了， 问题不大。
+
+  ~cgi~ 和 ~pprint~ 这两个模块不太熟悉， 可以了解一下。
+
+  ~urllib~ 了解过， 但用的比较少， 不是很熟悉。
+
+  ~Cookie~ 就没用过了。
+
+  ~io~ 这个模块目前就用过 ~io.open~.
+
+* instances
+  前一次阅读的过程中对这些 *实例* 的调用产生了一些疑惑， 后来尝试了一下，
+  发现其他模块中 ~import~ 这些实例的话， 不同模块 ~import~ 的是同一个对象。
+
+  也就是说在一个模块中对 *实例* 的属性进行了修改， 会反应到同样 ~import~ 了这个 *实例*
+  的模块中， 包括当前模块本身。
+
+  而 ~ctx~ 对象的特殊性， 使得它在除了 *主线程* 中的唯一 *实例* 外， 在其他线程中还会单独存在
+  一个实例， 保存那个线程下的上下文。
+
+** config
+   #+BEGIN_SRC python
+     config = storage()
+     config.__doc__ = """
+     A configuration object for various aspects of web.py.
+
+     `debug`
+        : when True, enables reloading, disabled template caching and sets internalerror to debugerror.
+     """
+   #+END_SRC
+
+   配置用的一个实例， 简单直接。
+
+** ctx
+   #+BEGIN_SRC python
+     ctx = context = threadeddict()
+
+     ctx.__doc__ = """
+     A `storage` object containing various information about the request:
+
+     `environ` (aka `env`)
+        : A dictionary containing the standard WSGI environment variables.
+
+     `host`
+        : The domain (`Host` header) requested by the user.
+
+     `home`
+        : The base path for the application.
+
+     `ip`
+        : The IP address of the requester.
+
+     `method`
+        : The HTTP method used.
+
+     `path`
+        : The path request.
+
+     `query`
+        : If there are no query arguments, the empty string. Otherwise, a `?` followed
+          by the query string.
+
+     `fullpath`
+        : The full path requested, including query arguments (`== path + query`).
+
+     ### Response Data
+
+     `status` (default: "200 OK")
+        : The status code to be used in the response.
+
+     `headers`
+        : A list of 2-tuples to be used in the response.
+
+     `output`
+        : A string to be used as the response.
+     """
+   #+END_SRC
+
+   应该是用来保存 *上下文* 的对象， 而且是 ~threadeddict~ 的 *实例*.
+
+   ~threadeddict~ 是在 ~utils~ 模块中定义的， 该对象的实例在各个线程下相对独立， 互不影响。
+
+   也就是说 ~ctx~ 可以分别保存多个线程的上下文， 互不影响， 且调用属性方式相同。
+
+* class HTTPError
+  一个自定义异常:
+  #+BEGIN_SRC python
+    class HTTPError(Exception):
+        def __init__(self, status, headers={}, data=""):
+            ctx.status = status
+            for k, v in headers.items():
+                header(k, v)
+            self.data = data
+            Exception.__init__(self, status)
+  #+END_SRC
+
+  异常的 *构造函数* 中， 修改了 ~ctx.status~, 并将 ~data~ 绑定到自身的实例上。
+
+  也就是说， 当出现 ~HTTPError~ 的时候， 会将 *状态码* 保存到当前的上下文之中。
+
+  也可以预测， 使用 ~HTTPError~ 的地方， 必然知道返回的 *状态码*.
+
+** function header
+   *构造函数* 中使用了 ~header~ 函数：
+   #+BEGIN_SRC python
+     def header(hdr, value, unique=False):
+         """
+         Adds the header `hdr: value` with the response.
+
+         If `unique` is True and a header with that name already exists,
+         it doesn't add a new one.
+         """
+         hdr, value = safestr(hdr), safestr(value)
+         # protection against HTTP response splitting attack
+         if '\n' in hdr or '\r' in hdr or '\n' in value or '\r' in value:
+             raise ValueError('invalid characters in header')
+         if unique is True:
+             for h, v in ctx.headers:
+                 if h.lower() == hdr.lower(): return
+
+         ctx.headers.append((hdr, value))
+   #+END_SRC
+
+   很明显， 这个是用来将 *响应头* 保存到上下文中的函数。
+
+   首先， 将头信息的键值转换为 ~str~, 包整内部数据类型的统一。
+
+   *头信息* 中的数据是不存在 *换行符* 的， 所以进行了检查。
+
+   循环中判断头信息的 *键* 是否重复。
+
+   ~headers~ 是一个 ~list~.
+
+   目前可以明白 ~HTTPError~ 的基本工作流程了：
+   1. 将状态码保存到当前上下文
+   2. 更新当前上下文的头信息
+   3. 将 ~data~ 绑定到异常实例
+
