@@ -10,6 +10,9 @@
   - [[#ctx][ctx]]
 - [[#class-httperror][class HTTPError]]
   - [[#function-header][function header]]
+- [[#function-_status_code][function _status_code]]
+- [[#class-for-status-code][class for status code]]
+- [[#function-rawinput][function rawinput]]
 
 * Reread
   前一段时间尝试了阅读 ~webapi~ 模块的源码， 但由于相关知识不足的问题导致阅读质量
@@ -174,4 +177,134 @@
    1. 将状态码保存到当前上下文
    2. 更新当前上下文的头信息
    3. 将 ~data~ 绑定到异常实例
+
+* function _status_code
+  用来构造类的一个函数：
+  #+BEGIN_SRC python
+    def _status_code(status, data=None, classname=None, docstring=None):
+        if data is None:
+            data = status.split(" ", 1)[1]
+        classname = status.split(" ", 1)[1].replace(' ', '') # 304 Not Modified -> NotModified
+        docstring = docstring or '`%s` status' % status
+
+        def __init__(self, data=data, headers={}):
+            HTTPError.__init__(self, status, headers, data)
+
+        # trick to create class dynamically with dynamic docstring.
+        return type(classname, (HTTPError, object), {
+            '__doc__': docstring,
+            '__init__': __init__
+        })
+  #+END_SRC
+
+  使用这个函数创建了四个类：
+  #+BEGIN_SRC python
+    ok = OK = _status_code("200 OK", data="")
+    created = Created = _status_code("201 Created")
+    accepted = Accepted = _status_code("202 Accepted")
+    nocontent = NoContent = _status_code("204 No Content")
+  #+END_SRC
+  
+  感觉吧， 函数前面的 ~_~ 是很有必要的 ！
+
+* class for status code
+  针对 *状态码* 的异常类：
+  #+BEGIN_SRC python
+    __all__ = [
+        "HTTPError",
+
+        # 200, 201, 202, 204
+        "OK", "Created", "Accepted", "NoContent",
+        "ok", "created", "accepted", "nocontent",
+
+        # 301, 302, 303, 304, 307
+        "Redirect", "Found", "SeeOther", "NotModified", "TempRedirect",
+        "redirect", "found", "seeother", "notmodified", "tempredirect",
+
+        # 400, 401, 403, 404, 405, 406, 409, 410, 412, 415, 451
+        "BadRequest", "Unauthorized", "Forbidden", "NotFound", "NoMethod", "NotAcceptable", "Conflict", "Gone", "PreconditionFailed", "UnsupportedMediaType", "UnavailableForLegalReasons",
+        "badrequest", "unauthorized", "forbidden", "notfound", "nomethod", "notacceptable", "conflict", "gone", "preconditionfailed", "unsupportedmediatype", "unavailableforlegalreasons",
+
+        # 500
+        "InternalError",
+        "internalerror",
+    ]
+  #+END_SRC
+  
+  看 ~__all__~ 变量的部分就可以明白有多少个类了。
+
+  这部分的代码主要就是针对不同的状态码的操作， 相当繁琐。
+
+  但是浏览还是有助于了解 ~HTTP~ 协议相关的内容。
+
+  留个链接： [[https://github.com/webpy/webpy/blob/master/web/webapi.py#L54][HTTPError]].
+
+* function rawinput
+  和 ~raw_input~ 就差个 ~_~:
+  #+BEGIN_SRC python
+    def rawinput(method=None):
+        """Returns storage object with GET or POST arguments.
+        """
+        method = method or "both"
+
+        def dictify(fs):
+            # hack to make web.input work with enctype='text/plain.
+            if fs.list is None:
+                fs.list = []
+
+            return dict([(k, fs[k]) for k in fs.keys()])
+
+        e = ctx.env.copy()
+        a = b = {}
+
+        if method.lower() in ['both', 'post', 'put']:
+            if e['REQUEST_METHOD'] in ['POST', 'PUT']:
+                if e.get('CONTENT_TYPE', '').lower().startswith('multipart/'):
+                    # since wsgi.input is directly passed to cgi.FieldStorage,
+                    # it can not be called multiple times. Saving the FieldStorage
+                    # object in ctx to allow calling web.input multiple times.
+                    a = ctx.get('_fieldstorage')
+                    if not a:
+                        fp = e['wsgi.input']
+                        a = cgi.FieldStorage(fp=fp, environ=e, keep_blank_values=1)
+                        ctx._fieldstorage = a
+                else:
+                    d = data()
+                    if PY2 and isinstance(d, unicode):
+                        d = d.encode('utf-8')
+                    fp = BytesIO(d)
+                    a = cgi.FieldStorage(fp=fp, environ=e, keep_blank_values=1)
+                a = dictify(a)
+
+        if method.lower() in ['both', 'get']:
+            e['REQUEST_METHOD'] = 'GET'
+            b = dictify(cgi.FieldStorage(environ=e, keep_blank_values=1))
+
+        def process_fieldstorage(fs):
+            if isinstance(fs, list):
+                return [process_fieldstorage(x) for x in fs]
+            elif fs.filename is None:
+                return fs.value
+            else:
+                return fs
+
+        return storage([(k, process_fieldstorage(v)) for k, v in dictadd(b, a).items()])
+  #+END_SRC
+ 
+  首先是嵌套函数 ~dictify~, 目测和 ~Storage~ 对象有关。
+
+  关于 ~Storage~ 的内容忘了不少， 重新打开 ~utils~ 看了一下， 发现
+  ~Storage~ 是继承自 ~dict~ 的， 并重构的 *设置属性* 的魔法方法。
+
+  使得设置与获取属性的时候就等价于设置获取字典的键值。
+
+  ~utils~ 中定义了一个函数 ~storify~, 将一个映射对象转化为 ~storage~ 对象。
+
+  这个 ~dictify~ 的部分作用应该就是将 ~storage~ 转化为 ~dict~.
+
+  然后， 获取了 *上下文* 中的 ~env~ 对象的浅拷贝。
+
+  ~a = b = {}~, a 和 b 都是同一个对象。
+
+  emmm, 用到 ~cgi~ 了， 先去了解一下。
 
