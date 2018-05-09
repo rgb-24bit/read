@@ -13,6 +13,7 @@
 - [[#function-_status_code][function _status_code]]
 - [[#class-for-status-code][class for status code]]
 - [[#function-rawinput][function rawinput]]
+- [[#function-input][function input]]
 
 * Reread
   前一段时间尝试了阅读 ~webapi~ 模块的源码， 但由于相关知识不足的问题导致阅读质量
@@ -306,5 +307,28 @@
 
   ~a = b = {}~, a 和 b 都是同一个对象。
 
-  emmm, 用到 ~cgi~ 了， 先去了解一下。
+  看了一下 ~CGI~ 相关的内容， 发现 ~ctx~ 中的部分属性是针对 ~CGI~ 的。
 
+  比如 ~ctx.env~, 保存了 *CGI 环境变量*.
+
+  通过 ~cgi.FieldStorage~ 可以获取发送的数据。
+  
+  emmm, 对 ~CGI~ 有了了解， 但对接口不熟， 暂时就这样。
+
+* function input
+  #+BEGIN_SRC python
+    def input(*requireds, **defaults):
+        """
+        Returns a `storage` object with the GET and POST arguments.
+        See `storify` for how `requireds` and `defaults` work.
+        """
+        _method = defaults.pop('_method', 'both')
+        out = rawinput(_method)
+        try:
+            defaults.setdefault('_unicode', True) # force unicode conversion by default.
+            return storify(out, *requireds, **defaults)
+        except KeyError:
+            raise badrequest()
+  #+END_SRC
+
+  溜了溜了， 去看 ~CGI~.
