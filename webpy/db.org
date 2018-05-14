@@ -4,6 +4,10 @@
 
 * Table of contents                                       :TOC_4_gh:noexport:
 - [[#import][import]]
+- [[#tokenprog][tokenprog]]
+- [[#exception][Exception]]
+- [[#sql-object][SQL Object]]
+  - [[#class-sqlparam][class SQLParam]]
 
 * import
   ~1490~ 行......
@@ -37,4 +41,130 @@
   #+END_SRC
 
   看到 ~webapi~ 了， 还是先去看 ~webapi~ 的源码好了.
+
+  ~webapi~ 的源码完成了， 继续看 ~db~ 的源码。
+
+  现在来看的话， 导入没有什么好说的。
+
+  ~ast~ 也用过了， 是个好东西。
+
+* tokenprog
+  这绝对是到目前为止见过的最复杂的 *正则表达式*:
+  #+BEGIN_SRC python
+    TOKEN = '[ \\f\\t]*(\\\\\\r?\\n[ \\f\\t]*)*(#[^\\r\\n]*)?(((\\d+[jJ]|((\\d+\\.\\d*|\\.\\d+)([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)[jJ])|((\\d+\\.\\d*|\\.\\d+)([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)|(0[xX][\\da-fA-F]+[lL]?|0[bB][01]+[lL]?|(0[oO][0-7]+)|(0[0-7]*)[lL]?|[1-9]\\d*[lL]?))|((\\*\\*=?|>>=?|<<=?|<>|!=|//=?|[+\\-*/%&|^=<>]=?|~)|[][(){}]|(\\r?\\n|[:;.,`@]))|([uUbB]?[rR]?\'[^\\n\'\\\\]*(?:\\\\.[^\\n\'\\\\]*)*\'|[uUbB]?[rR]?"[^\\n"\\\\]*(?:\\\\.[^\\n"\\\\]*)*")|[a-zA-Z_]\\w*)'
+
+    tokenprog = re.compile(TOKEN)
+  #+END_SRC
+  
+  无力......
+
+* Exception
+  这里有几个异常：
+  #+BEGIN_SRC python
+    class UnknownDB(Exception):
+        """raised for unsupported dbms"""
+        pass
+
+    class _ItplError(ValueError):
+        def __init__(self, text, pos):
+            ValueError.__init__(self)
+            self.text = text
+            self.pos = pos
+        def __str__(self):
+            return "unfinished expression in %s at char %d" % (
+                repr(self.text), self.pos)
+
+    class TransactionError(Exception): pass
+
+    class UnknownParamstyle(Exception):
+        """
+        raised for unsupported db paramstyles
+
+        (currently supported: qmark, numeric, format, pyformat)
+        """
+        pass
+  #+END_SRC
+  
+  没啥好说的......
+
+* SQL Object
+  这些主要是针对 SQL 语句的 *类* 和 *函数*.
+
+  功能上很强大， 阅读上有点小困难......
+
+** class SQLParam
+   阅读上的困难一部分就来自于： 对其他对象的依赖。
+
+   比如这个类， 依赖后面的 ~SQLQuery~ 类， 而 ~SQLQuery~ 又依赖其他的...
+
+   #+BEGIN_SRC python
+     class SQLParam(object):
+         """
+         Parameter in SQLQuery.
+    
+             >>> q = SQLQuery(["SELECT * FROM test WHERE name=", SQLParam("joe")])
+             >>> q
+             <sql: "SELECT * FROM test WHERE name='joe'">
+             >>> q.query()
+             'SELECT * FROM test WHERE name=%s'
+             >>> q.values()
+             ['joe']
+         """
+         __slots__ = ["value"]
+
+         def __init__(self, value):
+             self.value = value
+        
+         def get_marker(self, paramstyle='pyformat'):
+             if paramstyle == 'qmark':
+                 return '?'
+             elif paramstyle == 'numeric':
+                 return ':1'
+             elif paramstyle is None or paramstyle in ['format', 'pyformat']:
+                 return '%s'
+             raise UnknownParamstyle(paramstyle)
+        
+         def sqlquery(self): 
+             return SQLQuery([self])
+        
+         def __add__(self, other):
+             return self.sqlquery() + other
+        
+         def __radd__(self, other):
+             return other + self.sqlquery() 
+            
+         def __str__(self): 
+             return str(self.value)
+
+         def __eq__(self, other):
+             return isinstance(other, SQLParam) and other.value == self.value
+    
+         def __repr__(self):
+             return '<param: %s>' % repr(self.value)
+
+     sqlparam =  SQLParam
+   #+END_SRC
+
+   从类名来看， 这个是和 ~SQL~ 语句中的参数有关的。
+
+   使用了 ~__slots__~, 将实例属性限制在了 ~value~.
+
+   方法 ~get_marker~ 在这里看有点不太好理解， 和 ~SQLQuery~ 中的调用环境有关系。
+
+   通过 ~paramstyle~ 参数来设置返回的格式字符串的样式， 感觉的话可以为每种样式单独设置
+   一个方法， 但是会复杂......
+
+   支持 *三类* 样式： ~qmark~, ~numeric~, ~pyformat~.
+
+   ~qmark~ 和 ~pyformat~ 都用过， ~numeric~ 不是很熟悉。
+
+   找了一下， 没找到， 希望后面的代码能有所发现。
+
+  方法 ~sqlquery~ 的话， 和 *魔法方法* 连起来...
+
+  两个 ~SQLParam~ 对象相加结果是一个 ~SQLQuery~ 对象 ？
+
+  还要涉及 ~SQLQuery~ 的魔法方法......
+
+  前后行为不一致的操作真的大丈夫 ？
 
