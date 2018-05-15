@@ -26,7 +26,7 @@
   前一段时间尝试了阅读 ~webapi~ 模块的源码， 但由于相关知识不足的问题导致阅读质量
   很差， 因此选择重读。
 
-  前一段时间的阅读笔记： [[file:trash/webapi.org][webapi]].
+  前一段时间的阅读笔记： [[file:_trash/webapi.org][webapi]].
   
 * import
   这个模块依赖的模块：
