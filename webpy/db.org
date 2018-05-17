@@ -1,0 +1,404 @@
+#+TITLE:      db
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of contents                                       :TOC_4_gh:noexport:
+- [[#import][import]]
+- [[#tokenprog][tokenprog]]
+- [[#exception][Exception]]
+- [[#sql-object][SQL Object]]
+  - [[#class-sqlparam][class SQLParam]]
+  - [[#class-sqlquery][class SQLQuery]]
+  - [[#where-is-my-note-][Where is my note ?]]
+- [[#class-transaction][class Transaction]]
+
+* import
+  ~1490~ 行......
+
+  #+BEGIN_SRC python
+    from __future__ import print_function
+    from .utils import threadeddict, storage, iters, iterbetter, safestr, safeunicode
+    import datetime, time, os, urllib, re
+
+    from .py3helpers import PY2, string_types, numeric_types, iteritems
+
+    try:
+        from urllib import parse as urlparse
+        from urllib.parse import unquote
+    except ImportError:
+        import urlparse
+        from urllib import unquote
+
+    try:
+        import ast
+    except ImportError:
+        ast = None
+
+    try:
+        # db module can work independent of web.py
+        from .webapi import debug, config
+    except:
+        import sys
+        debug = sys.stderr
+        config = storage()
+  #+END_SRC
+
+  看到 ~webapi~ 了， 还是先去看 ~webapi~ 的源码好了.
+
+  ~webapi~ 的源码完成了， 继续看 ~db~ 的源码。
+
+  现在来看的话， 导入没有什么好说的。
+
+  ~ast~ 也用过了， 是个好东西。
+
+* tokenprog
+  这绝对是到目前为止见过的最复杂的 *正则表达式*:
+  #+BEGIN_SRC python
+    TOKEN = '[ \\f\\t]*(\\\\\\r?\\n[ \\f\\t]*)*(#[^\\r\\n]*)?(((\\d+[jJ]|((\\d+\\.\\d*|\\.\\d+)([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)[jJ])|((\\d+\\.\\d*|\\.\\d+)([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)|(0[xX][\\da-fA-F]+[lL]?|0[bB][01]+[lL]?|(0[oO][0-7]+)|(0[0-7]*)[lL]?|[1-9]\\d*[lL]?))|((\\*\\*=?|>>=?|<<=?|<>|!=|//=?|[+\\-*/%&|^=<>]=?|~)|[][(){}]|(\\r?\\n|[:;.,`@]))|([uUbB]?[rR]?\'[^\\n\'\\\\]*(?:\\\\.[^\\n\'\\\\]*)*\'|[uUbB]?[rR]?"[^\\n"\\\\]*(?:\\\\.[^\\n"\\\\]*)*")|[a-zA-Z_]\\w*)'
+
+    tokenprog = re.compile(TOKEN)
+  #+END_SRC
+  
+  无力......
+
+* Exception
+  这里有几个异常：
+  #+BEGIN_SRC python
+    class UnknownDB(Exception):
+        """raised for unsupported dbms"""
+        pass
+
+    class _ItplError(ValueError):
+        def __init__(self, text, pos):
+            ValueError.__init__(self)
+            self.text = text
+            self.pos = pos
+        def __str__(self):
+            return "unfinished expression in %s at char %d" % (
+                repr(self.text), self.pos)
+
+    class TransactionError(Exception): pass
+
+    class UnknownParamstyle(Exception):
+        """
+        raised for unsupported db paramstyles
+
+        (currently supported: qmark, numeric, format, pyformat)
+        """
+        pass
+  #+END_SRC
+  
+  没啥好说的......
+
+* SQL Object
+  这些主要是针对 SQL 语句的 *类* 和 *函数*.
+
+  功能上很强大， 阅读上有点小困难......
+
+** class SQLParam
+   阅读上的困难一部分就来自于： 对其他对象的依赖。
+
+   比如这个类， 依赖后面的 ~SQLQuery~ 类， 而 ~SQLQuery~ 又依赖其他的...
+
+   #+BEGIN_SRC python
+     class SQLParam(object):
+         """
+         Parameter in SQLQuery.
+    
+             >>> q = SQLQuery(["SELECT * FROM test WHERE name=", SQLParam("joe")])
+             >>> q
+             <sql: "SELECT * FROM test WHERE name='joe'">
+             >>> q.query()
+             'SELECT * FROM test WHERE name=%s'
+             >>> q.values()
+             ['joe']
+         """
+         __slots__ = ["value"]
+
+         def __init__(self, value):
+             self.value = value
+        
+         def get_marker(self, paramstyle='pyformat'):
+             if paramstyle == 'qmark':
+                 return '?'
+             elif paramstyle == 'numeric':
+                 return ':1'
+             elif paramstyle is None or paramstyle in ['format', 'pyformat']:
+                 return '%s'
+             raise UnknownParamstyle(paramstyle)
+        
+         def sqlquery(self): 
+             return SQLQuery([self])
+        
+         def __add__(self, other):
+             return self.sqlquery() + other
+        
+         def __radd__(self, other):
+             return other + self.sqlquery() 
+            
+         def __str__(self): 
+             return str(self.value)
+
+         def __eq__(self, other):
+             return isinstance(other, SQLParam) and other.value == self.value
+    
+         def __repr__(self):
+             return '<param: %s>' % repr(self.value)
+
+     sqlparam =  SQLParam
+   #+END_SRC
+
+   从类名来看， 这个是和 ~SQL~ 语句中的参数有关的。
+
+   使用了 ~__slots__~, 将实例属性限制在了 ~value~.
+
+   方法 ~get_marker~ 在这里看有点不太好理解， 和 ~SQLQuery~ 中的调用环境有关系。
+
+   通过 ~paramstyle~ 参数来设置返回的格式字符串的样式， 感觉的话可以为每种样式单独设置
+   一个方法， 但是会复杂......
+
+   支持 *三类* 样式： ~qmark~, ~numeric~, ~pyformat~.
+
+   ~qmark~ 和 ~pyformat~ 都用过， ~numeric~ 不是很熟悉。
+
+   找了一下， 没找到， 希望后面的代码能有所发现。
+
+  方法 ~sqlquery~ 的话， 和 *魔法方法* 连起来...
+
+  两个 ~SQLParam~ 对象相加结果是一个 ~SQLQuery~ 对象 ？
+
+  还要涉及 ~SQLQuery~ 的魔法方法......
+
+  前后行为不一致的操作真的大丈夫 ？
+
+** class SQLQuery
+   查询语句相关的一个类：
+   #+BEGIN_SRC python
+     class SQLQuery(object):
+         """
+         You can pass this sort of thing as a clause in any db function.
+         Otherwise, you can pass a dictionary to the keyword argument `vars`
+         and the function will call reparam for you.
+
+         Internally, consists of `items`, which is a list of strings and
+         SQLParams, which get concatenated to produce the actual query.
+         """
+         __slots__ = ["items"]
+
+         # tested in sqlquote's docstring
+         def __init__(self, items=None):
+             r"""Creates a new SQLQuery.
+        
+                 >>> SQLQuery("x")
+                 <sql: 'x'>
+                 >>> q = SQLQuery(['SELECT * FROM ', 'test', ' WHERE x=', SQLParam(1)])
+                 >>> q
+                 <sql: 'SELECT * FROM test WHERE x=1'>
+                 >>> q.query(), q.values()
+                 ('SELECT * FROM test WHERE x=%s', [1])
+                 >>> SQLQuery(SQLParam(1))
+                 <sql: '1'>
+             """
+             if items is None:
+                 self.items = []
+             elif isinstance(items, list):
+                 self.items = items
+             elif isinstance(items, SQLParam):
+                 self.items = [items]
+             elif isinstance(items, SQLQuery):
+                 self.items = list(items.items)
+             else:
+                 self.items = [items]
+            
+             # Take care of SQLLiterals
+             for i, item in enumerate(self.items):
+                 if isinstance(item, SQLParam) and isinstance(item.value, SQLLiteral):
+                     self.items[i] = item.value.v
+
+         def append(self, value):
+             self.items.append(value)
+
+         def __add__(self, other):
+             if isinstance(other, string_types):
+                 items = [other]
+             elif isinstance(other, SQLQuery):
+                 items = other.items
+             else:
+                 return NotImplemented
+             return SQLQuery(self.items + items)
+
+         def __radd__(self, other):
+             if isinstance(other, string_types):
+                 items = [other]
+             elif isinstance(other, SQLQuery):
+                 items = other.items
+             else:
+                 return NotImplemented
+             return SQLQuery(items + self.items)
+
+         def __iadd__(self, other):
+             if isinstance(other, (string_types, SQLParam)):
+                 self.items.append(other)
+             elif isinstance(other, SQLQuery):
+                 self.items.extend(other.items)
+             else:
+                 return NotImplemented
+             return self
+
+         def __len__(self):
+             return len(self.query())
+
+         def __eq__(self, other):
+             return isinstance(other, SQLQuery) and other.items == self.items
+        
+         def query(self, paramstyle=None):
+             """
+             Returns the query part of the sql query.
+                 >>> q = SQLQuery(["SELECT * FROM test WHERE name=", SQLParam('joe')])
+                 >>> q.query()
+                 'SELECT * FROM test WHERE name=%s'
+                 >>> q.query(paramstyle='qmark')
+                 'SELECT * FROM test WHERE name=?'
+             """
+             s = []
+             for x in self.items:
+                 if isinstance(x, SQLParam):
+                     x = x.get_marker(paramstyle)
+                     s.append(safestr(x))
+                 else:
+                     x = safestr(x)
+                     # automatically escape % characters in the query
+                     # For backward compatability, ignore escaping when the query looks already escaped
+                     if paramstyle in ['format', 'pyformat']:
+                         if '%' in x and '%%' not in x:
+                             x = x.replace('%', '%%')
+                     s.append(x)
+             return "".join(s)
+    
+         def values(self):
+             """
+             Returns the values of the parameters used in the sql query.
+                 >>> q = SQLQuery(["SELECT * FROM test WHERE name=", SQLParam('joe')])
+                 >>> q.values()
+                 ['joe']
+             """
+             return [i.value for i in self.items if isinstance(i, SQLParam)]
+        
+         def join(items, sep=' ', prefix=None, suffix=None, target=None):
+             """
+             Joins multiple queries.
+        
+             >>> SQLQuery.join(['a', 'b'], ', ')
+             <sql: 'a, b'>
+
+             Optinally, prefix and suffix arguments can be provided.
+
+             >>> SQLQuery.join(['a', 'b'], ', ', prefix='(', suffix=')')
+             <sql: '(a, b)'>
+
+             If target argument is provided, the items are appended to target instead of creating a new SQLQuery.
+             """
+             if target is None:
+                 target = SQLQuery()
+
+             target_items = target.items
+
+             if prefix:
+                 target_items.append(prefix)
+
+             for i, item in enumerate(items):
+                 if i != 0 and sep != "":
+                     target_items.append(sep)
+                 if isinstance(item, SQLQuery):
+                     target_items.extend(item.items)
+                 elif item == "": # joins with empty strings
+                     continue
+                 else:
+                     target_items.append(item)
+
+             if suffix:
+                 target_items.append(suffix)
+             return target
+    
+         join = staticmethod(join)
+    
+         def _str(self):
+             try:
+                 return self.query() % tuple([sqlify(x) for x in self.values()])            
+             except (ValueError, TypeError):
+                 return self.query()
+        
+         def __str__(self):
+             return safestr(self._str())
+        
+         def __unicode__(self):
+             return safeunicode(self._str())
+
+         def __repr__(self):
+             return '<sql: %s>' % repr(str(self))
+   #+END_SRC
+
+   代码有点长......
+
+   其实看这个类的文档的话， 功能还是很强大的。
+
+   就是代码不好读......
+
+   首先是 *构造函数*:
+   1. 判断传入的 ~items~ 的类型
+      1. ~None~, 实例的 ~items~ 为 ~[]~
+      2. ~list~, 实例的 ~items~ 就是传入的 ~items~
+      3. ~SQLParam~, 实例的 ~items~ 是 ~[items]~
+      4. ~SQLQuery~, 实例的 ~items~ 是传入的 ~SQLQuery~ 的 ~items~
+      5. 其他， 实例的 ~items~ 是 ~[items]~
+      感觉 ~3~ 和 ~4~ 可以合起来。
+   2. 遍历 ~items~, 如果遍历到的的元素是 ~SQLParam~ 并且该元素的值为 ~SQLLiterals~, 便
+      替换 该元素为对应的 ~SQLLiterals~ 的值。
+
+  方法 ~append~, 直接将传入的参数添加到列表 ~items~ 的末尾。
+  没有进行类型检查与处理， 应该是放在其他地方。
+
+  加法运算相关的 *魔法方法*, *左加* 和 *右加* 的操作差不多， *自加* 有一些区别。
+
+  返回值 ~NotImplemented~ 的相关内容： [[https://stackoverflow.com/questions/878943/why-return-notimplemented-instead-of-raising-notimplementederror][Why return NotImplemented instead of raising NotImplementedError]]
+
+  长度判断依赖于函数 ~query~:
+  
+  ~query~ 的作用是将 ~items~ 转换为完整的 ~SQL~ 语句， 需要对不同的元素类型进行调整。
+
+  对于 ~SQLParam~ 类型的成员， 使用 ~SQLParam.get_marker~ 获取对应的 ~marker~.
+
+  方法 ~values~:
+  
+  获取 ~items~ 中的 ~SQLParam~ 类型元素的值。
+
+  方法 ~join~, 返回的是一个 ~SQLQuery~ 对象， 将提供的 ~items~ 和其他参数进行组合。
+
+  方法 ~_str~ 将 ~SQL~ 语句和 *参数* 组合起来， 返回对应的语句。
+
+  看到这里的话， ~SQLQuery~ 的源码差不多就看完了， 但是还是有点晕。
+
+  涉及的类型比较多， 还有一个函数 ~sqlify~ 没看， 估计和其他类型的元素的
+  类型的转换相关。
+
+  允许的参数的类型很宽松， 但是代码的编写就很繁复。
+
+  不断的类型检查， 一不小心就会出错。
+
+** Where is my note ?
+   时隔一天， 再次代开这个文件夹的时候， 发现 ~db.org~ 不见了 ？？？
+
+   不对啊， 昨天才提交的代码怎么会不见了呢？？？
+
+   打开提交记录， 发现文件被删了......
+
+   看样子是某个快捷键按错了......
+
+   还好有之前的记录， 但是昨天的笔记就只能 GG 了......
+
+   ......
+
+   (ノ｀Д)ノ(ノ｀Д)ノ(ノ｀Д)ノ
+
+* class Transaction
+  
