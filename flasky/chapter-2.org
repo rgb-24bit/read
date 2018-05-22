@@ -55,8 +55,6 @@
         return '<h1>Hello World!</h1>'
   #+END_SRC
 
-  大胆的猜测一下， 装饰器 ~app.route~ 在内部调用装饰的函数， 将函数返回的字符串进行处理反馈给客户端。
-
 * Tag: 2b
   新增的代码：
   #+BEGIN_SRC python

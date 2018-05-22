@@ -26,6 +26,8 @@
   部分进行转换， 返回我们想要的新的字符串。
 
   通过函数 ~render_template~ 对模板进行渲染， 默认保存模板的文件夹是 ~templates~.
+  
+  参考： [[http://flask.pocoo.org/docs/1.0/quickstart/#rendering-templates][Rendering Templates]].
 
 * Tag: 3b
   又多了一个扩展：

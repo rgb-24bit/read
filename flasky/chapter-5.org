@@ -47,6 +47,8 @@
   对于 ~sqlite~ 数据库的话， ~sqlite:///~ 是在磁盘上创建数据库文件， 而 ~sqlite://~ 是在
   内存中创建数据库， 方便测试。
 
+  另外， ~flask_sqlalchemy~ 对 ~sqlalchemy~ 做了一层很好的封装， 更易使用。
+
 * Tag: 5b
   这一节涉及到数据库的使用了：
   #+BEGIN_SRC python

@@ -108,8 +108,8 @@
         </div>
     {% endfor %}
   #+END_SRC
-
-  应该是可以 ~flash~ 多条消息。
+  
+  [[http://flask.pocoo.org/docs/1.0/quickstart/#message-flashing][Message Flashing]].
 
 * Summary
   1. 使用 ~flask_wtf~:

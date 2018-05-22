@@ -17,7 +17,7 @@
   + [[file:chapter-5.org][Chapter 5]] - /flask_sqlalchemy, flask_migrate./
   + [[file:chapter-6.org][Chapter 6]] - /flask_mail./
   + [[file:chapter-7.org][Chapter 7]] - /flask(Blueprint)./
-    
+
   *放缓速度：* 第七章过后的源码阅读可以放缓了， 将重心转移到其他源码的阅读。
 
 * 相关链接
