@@ -25,13 +25,8 @@
 
 * 相关链接
   + [[https://github.com/pallets/flask][flask]] - *Flask* 源码链接
-  + [[https://github.com/lepture/flask-wtf][flask-wtf]] - *Flask* 和 *WTForms* 的简单集成
   + [[https://github.com/mitsuhiko/flask-sqlalchemy][flask-sqlalchemy]] - 将 *SQLAlchemy* 支持添加到 *Flask*
   + [[https://github.com/miguelgrinberg/Flask-Migrate][flask-migrate]] - 数据库迁移
-  + [[https://github.com/smurfix/flask-script][flask-script]] - 为 *Flask* 应用程序编写外部脚本
-  + [[https://github.com/mbr/flask-bootstrap][flask-bootstrap]] - 提供 *bootstrap* 基础模板的扩展
-  + [[https://github.com/miguelgrinberg/Flask-Moment][flask-moment]] - 格式化日期和时间
-  + [[https://github.com/mattupstate/flask-mail][flask-mail]] - 提供发送电子邮件的支持
 
   如何部署 ~flask~ 也是一个问题：
   + [[https://segmentfault.com/a/1190000008909201][在 Windows 平台使用 IIS 部署 Flask 网站]]
