@@ -4,8 +4,8 @@
 * Python
   + [[file:python-patterns/README.org][python-patterns]] - ~Python~ 中的设计模式
   + [[file:requests/README.org][requests]] - ~Pythonic~ 的类库
+  + [[file:flasky/README.org][flasky]] - ~Flask Web Development~ 的源代码示例 √
   + [[file:webpy/README.org][webpy]] - 简单而直接的 ~Python web~ 框架
-  + [[file:flasky/README.org][flasky]] - ~Flask Web Development~ 的源代码示例
   + [[file:libpy/README.org][libpy]] - ~Python~ 标准库
     
 * C-C++
