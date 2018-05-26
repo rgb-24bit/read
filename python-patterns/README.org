@@ -1,0 +1,10 @@
+#+TITLE:      python-patterns 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  ~python-patterns~ 是 ~Python~ 中的设计模式和习语的集合， 希望可以通过阅读 ~python-patterns~
+  的源码来学习 ~Python~ 中设计模式的实现与使用。
+
+  + 源码链接： [[https://github.com/faif/python-patterns][python-patterns]]
+
