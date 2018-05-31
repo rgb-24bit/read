@@ -131,24 +131,29 @@
 
 * 理解
   抽象工厂模式的定义是： 提供接口，创建一系列相关或独立的对象，而不指定这些对象的具体类。
+  
+  了解到 [[file:factory_method.org][工厂方法]] 模式后， 发现之前对 *抽象工厂* 的理解是错误的， 直接理解成 *工厂方法* 了......
 
-  通过定义可以了解到， 抽象工厂模式向调用者隐藏了具体类的细节， 调用者只需要在需要的时候
-  以适当的方式调用接口， 便可以获得需要的对象。
+  梳理了一下， 两者的区别还是很明显的：
+  + 抽象工厂模式是对一系列 *工厂* 的 *封装*, 创建一个抽象工厂的时候， 会指定这个抽象工厂具体的工厂。
+    后面对实际工厂的操作都是通过抽象工厂的接口来实现的。
 
-  同时， 这样的方式在扩展工厂的时候调用者不需要对代码做出太多修改， 只需要在调用时适当的修改
-  调用方式即可。
+    示例代码这一点表现的很清楚， 实例化抽象工厂 ~PetShop~ 时指定实际的工厂， 并且通过调用
+    ~PetShop~ 实例的方法来间接的操作实际的工厂。
 
-  这个模式要在 Python 中实现是很容易的， 除了示例代码的方式， 我想只要是能够返回对象的可调用对象
-  都可以用来充当这个工厂。
+  + 工厂方法和抽象工厂最大的一个区别应该就是返回的是对象本身， 调用工厂方法后，
+    后序的操作都是直接在 *对象* 上进行， 不在需要工厂方法。
 
   #+BEGIN_SRC python
     # -*- coding: utf-8 -*-
 
-    def create_repository(vc_type, path):
-        """abstract factory used to create repository."""
-        vc = {'git': Git, 'svn': Svn}
-        return vc[vc_type](path)
+    class VC(object):
+        def __init__(self, vc_factory):
+            self.vc_factory = vc_factory
 
+        def show_repository(self, path):
+            repository = self.vc_factory(path)
+            print(repository)
 
     class Git(object):
         def __init__(self, path):
@@ -167,11 +172,11 @@
 
 
     if __name__ == '__main__':
-        repository = create_repository('git', '~/abstract-factory')
-        print(repository)
+        vc_g = VC(Git)
+        vc_s = VC(Svn)
 
-        repository = create_repository('svn', '~/abstract-factory')
-        print(repository)
+        vc_g.show_repository('~/abstract-factory')
+        vc_s.show_repository('~/abstract-factory')
   #+END_SRC
 
   执行结果：

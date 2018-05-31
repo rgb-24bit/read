@@ -13,3 +13,4 @@
     + [[file:abstract_factory.org][abstract_factory]] - 抽象工厂模式 [[[https://zh.wikipedia.org/zh-hans/%E6%8A%BD%E8%B1%A1%E5%B7%A5%E5%8E%82][维基百科]]]
     + [[file:borg.org][borg]] - 类似单例模式 [[[https://zh.wikipedia.org/wiki/%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F][维基百科]]]
     + [[file:builder.org][builder]] - 建造者模式 [[[https://zh.wikipedia.org/wiki/%E7%94%9F%E6%88%90%E5%99%A8%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:factory_method.org][factory_method]] - 工厂方法模式 [[[https://zh.wikipedia.org/zh-hans/%E5%B7%A5%E5%8E%82%E6%96%B9%E6%B3%95][维基百科]]]
