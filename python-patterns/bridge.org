@@ -1,0 +1,150 @@
+#+TITLE:      bridge
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#文档][文档]]
+- [[#代码][代码]]
+- [[#输出][输出]]
+- [[#理解][理解]]
+
+* 文档
+  #+BEGIN_SRC python
+    """
+    *References:
+    http://en.wikibooks.org/wiki/Computer_Science_Design_Patterns/Bridge_Pattern#Python
+
+    *TL;DR80
+    Decouples an abstraction from its implementation.
+    """
+  #+END_SRC
+
+  *References*:
+  + http://en.wikibooks.org/wiki/Computer_Science_Design_Patterns/Bridge_Pattern#Python
+
+* 代码
+  #+BEGIN_SRC python
+    # ConcreteImplementor 1/2
+    class DrawingAPI1(object):
+
+        def draw_circle(self, x, y, radius):
+            print('API1.circle at {}:{} radius {}'.format(x, y, radius))
+
+
+    # ConcreteImplementor 2/2
+    class DrawingAPI2(object):
+
+        def draw_circle(self, x, y, radius):
+            print('API2.circle at {}:{} radius {}'.format(x, y, radius))
+
+
+    # Refined Abstraction
+    class CircleShape(object):
+
+        def __init__(self, x, y, radius, drawing_api):
+            self._x = x
+            self._y = y
+            self._radius = radius
+            self._drawing_api = drawing_api
+
+        # low-level i.e. Implementation specific
+        def draw(self):
+            self._drawing_api.draw_circle(self._x, self._y, self._radius)
+
+        # high-level i.e. Abstraction specific
+        def scale(self, pct):
+            self._radius *= pct
+
+
+    def main():
+        shapes = (
+            CircleShape(1, 2, 3, DrawingAPI1()),
+            CircleShape(5, 7, 11, DrawingAPI2())
+        )
+
+        for shape in shapes:
+            shape.scale(2.5)
+            shape.draw()
+
+
+    if __name__ == '__main__':
+        main()
+  #+END_SRC
+
+* 输出
+  #+BEGIN_EXAMPLE
+    ### OUTPUT ###
+    # API1.circle at 1:2 radius 7.5
+    # API2.circle at 5:7 radius 27.5
+  #+END_EXAMPLE
+
+* 理解
+  *桥接模式* 将对象的 *具体行为* 和 *具体特征* 分离开来， 使两者可以独立的变化。
+
+  示例代码中， 同一类型的 ~CircleShape~ 对象， 可以拥有不同的 ~draw~ 行为。
+
+  按照维基上的说法， 桥接模式是软件设计模式中最复杂的模式之一， 那么桥接模式的应用应该不是这么简单几句
+  话可以总结完的。
+
+  但是， 目前了解一下就好。
+
+  #+BEGIN_SRC python
+    # -*- coding: utf-8 -*-
+
+    from abc import ABCMeta, abstractmethod
+    from six import with_metaclass
+
+
+    class Shape(with_metaclass(ABCMeta, object)):
+        @abstractmethod
+        def draw(self):
+            raise NotImplementedError('You should implement this.')
+
+
+    class DrawingShape(with_metaclass(ABCMeta, object)):
+        @abstractmethod
+        def draw_shape(self):
+            raise NotImplementedError('You should implement this.')
+
+
+    class CircleShape(Shape):
+        def __init__(self, x, y, radius, drawing_api):
+            self._x = x
+            self._y = y
+            self._radius = radius
+            self._drawing_api = drawing_api
+
+        def draw(self):
+            self._drawing_api.draw_shape(self._x, self._y, self._radius)
+
+        def scale(self, pct):
+            self._radius *= pct
+
+
+    class DrawingCircle(DrawingShape):
+        def draw_shape(self, x, y, radius):
+            print('draw circle at {}:{} radius {}'.format(x, y, radius))
+
+
+    class DrawingCircleFill(DrawingShape):
+        def draw_shape(self, x, y, radius):
+            print('draw circle fill at {}:{} radius {}'.format(x, y, radius))
+
+
+    if __name__ == '__main__':
+        shapes = (
+            CircleShape(1, 2, 3, DrawingCircle()),
+            CircleShape(5, 7, 11, DrawingCircleFill())
+        )
+
+        for shape in shapes:
+            shape.scale(2.5)
+            shape.draw()
+  #+END_SRC
+
+  执行结果：
+  #+BEGIN_EXAMPLE
+    draw circle at 1:2 radius 7.5
+    draw circle fill at 5:7 radius 27.5
+  #+END_EXAMPLE
+
