@@ -9,4 +9,5 @@
   + ~socketserver~ 网络服务器框架
   + ~shutil~ 文件操作
   + ~_thread_local~ *ThreadLocal*
+  + ~random~ 随机操作
 
