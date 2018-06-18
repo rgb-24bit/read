@@ -3,3 +3,79 @@
 #+EMAIL:      rgb-24bit@foxmail.com
 
 * Table of Contents                                       :TOC_4_gh:noexport:
+- [[#主要代码部分][主要代码部分]]
+- [[#代码以外部分][代码以外部分]]
+- [[#初步的阅读计划][初步的阅读计划]]
+
+* 主要代码部分
+  和常见 ~Python~ 项目一样， ~flask~ 的主要代码放在一个包内， 这个包内还有一个子包 ~json~.
+
+  根据子包的名称可以判断， 这个子包是用于 ~json~ 处理方面的。 在使用 ~flask~ 的过程中， 感觉其 ~json~ 处理确实
+  很方便， 和 ~flask~ 的配合很好。
+
+  除了子包以外， 剩下的十几个模块， 基本上通过模块名都可以猜测出那个模式是干什么的。
+
+  可以说， 在看到 ~flask~ 内部内容的时候， 是非常舒服的。 含义清晰的模块名， 间接的结构。
+
+  值得学习。
+
+* 代码以外部分
+  感觉概览的过程更多的看的不是代码， 而是代码以外的部分。
+
+  毕竟， 除了编码以外， 其他的过程也是很值得学习的。
+
+  习惯性的找了一下依赖相关的文件， 没有 ~requirements.txt~, 用的 ~Pipenv~ ？
+
+  然而也没有 ~Pipfile~...
+
+  点开 ~Makefile~ 也没看出来什么名堂， 也许这触及到了我的知识盲区 @_@
+
+  依赖最后通过 ~setup.py~ 的如下代码找到了：
+  #+BEGIN_SRC python
+    install_requires=[
+            'Werkzeug>=0.14',
+            'Jinja2>=2.10',
+            'itsdangerous>=0.24',
+            'click>=5.1',
+        ],
+        extras_require={
+            'dotenv': ['python-dotenv'],
+            'dev': [
+                'pytest>=3',
+                'coverage',
+                'tox',
+                'sphinx',
+                'pallets-sphinx-themes',
+                'sphinxcontrib-log-cabinet',
+            ],
+            'docs': [
+                'sphinx',
+                'pallets-sphinx-themes',
+                'sphinxcontrib-log-cabinet',
+            ]
+        }
+  #+END_SRC
+
+  嗯， 用了一个 ~pip~ 的骚操作： [[https://pip.pypa.io/en/latest/reference/pip_install/#vcs-support][VCS Support]].
+
+  目前我用过的 ~python~ 库中， 感觉文档最好的是 ~click~, 但是取经最多的是 ~flask~.
+
+  文档注释很详细， 还可以看到版本更替的痕迹， 学习学习。
+
+  剩下的东西里面， 最让我在意的就是 ~tests~ 了。
+
+  很多， 很详细， 代码没仔细看， 但是量绝对足。
+
+  在看看自己写的东西， 溜了溜了......
+
+* 初步的阅读计划
+  从什么地方开始看源码是一个很重要的问题， 关乎到能否看懂源码。
+
+  本来准备先看子包 ~json~ 的代码， 结果打开一看一堆内部依赖项， 果断放弃。
+
+  然后， 老本行， 先看 ~_compat~ 的源码， 关于 ~Python2~ 和 ~Python3~ 的兼容。
+
+  这是一个令人烦躁的问题， 为编码工作增加额外的负担， 如果可以的话， 真的不想考虑这方面的问题......
+
+  这次 ~flask~ 源码的阅读顺便也把对应的测试代码看一下， 学习一下测试应该怎么写。
+  
