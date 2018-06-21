@@ -1,0 +1,94 @@
+#+TITLE:      json
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#flaskjson][flask.json]]
+- [[#初始化模块][初始化模块]]
+  - [[#依赖][依赖]]
+  - [[#代码][代码]]
+
+* flask.json
+  ~flask.json~ 是 ~flask~ 的一个子包， 处理和 ~json~ 相关的数据。
+
+  处理初始化模块以外， 就只有一个 ~tag~ 模块。 同时除了 ~_compat~ 和 ~globals~ 以外， 就没有更多的
+  内部依赖了。
+
+  虽然还有一些其他模块的依赖也比较少， 但还是想先到这个模块来取取经， 了解 ~json~ 的处理方法。
+
+* 初始化模块
+** 依赖
+   首先还是看依赖：
+   #+BEGIN_SRC python
+     import codecs
+     import io
+     import uuid
+     from datetime import date, datetime
+     from flask.globals import current_app, request
+     from flask._compat import text_type, PY2
+
+     from werkzeug.http import http_date
+     from jinja2 import Markup
+
+     # Use the same json implementation as itsdangerous on which we
+     # depend anyways.
+     from itsdangerous import json as _json
+   #+END_SRC
+
+   有几个不熟悉的模块：
+   + codecs: encode 和 decode 相关的一个模块， 可以直接使用 ~codecs.open~ 按指定的编码读取文件
+   + uuid: Python 中用于生成通用唯一识别码的模块， 感觉会很有用
+   + datetime: 日期时间相关的模块， 知道有这个对象， 但很少用过
+
+   第三方库依赖：
+   + werkzeug.http.http_data: 格式化时间以匹配 RFC1123 日期格式
+
+     #+BEGIN_SRC python
+       >>> http_date()
+       'Thu, 21 Jun 2018 04:10:29 GMT'
+
+       >>> import time
+       >>> http_date(time.time())
+       'Thu, 21 Jun 2018 04:12:27 GMT'
+     #+END_SRC
+
+     + [[http://werkzeug.pocoo.org/docs/0.14/http/#werkzeug.http.http_date][werkzeug.http.http_date]]
+
+   + jinja2.Markup: 可以标记一段字符串为安全的， 使得其转换为 ~HTML~ 字符串时不进行转义。
+     或者通过 ~Markup.escape~ 进行转义。 如果一个对象定义了 ~__html__~ 方法， 也可以用 ~Markup~
+     进行标记。
+
+     #+BEGIN_SRC python
+       >>> Markup("Hello <em>World</em>!")
+       Markup(u'Hello <em>World</em>!')
+       >>> class Foo(object):
+       ...  def __html__(self):
+       ...   return '<a href="#">foo</a>'
+       ...
+       >>> Markup(Foo())
+       Markup(u'<a href="#">foo</a>')
+
+       >>> Markup.escape("Hello <em>World</em>!")
+       Markup(u'Hello &lt;em&gt;World&lt;/em&gt;!')
+     #+END_SRC
+
+   + itsdangerous.json: itsdangerous 的 json 是这样的：
+     #+BEGIN_SRC python
+       try:
+           import simplejson as json
+       except ImportError:
+           import json
+     #+END_SRC
+
+     ~simplejson~ 在 2.6 版本开始就加入标准库了， 这里是对更古老的版本的兼容 @_@
+
+** 代码
+   很好奇现在的 ~flask~ 兼容几个版本的 ~Python~:
+   #+BEGIN_SRC python
+     # Figure out if simplejson escapes slashes.  This behavior was changed
+     # from one version to another without reason.
+     _slash_escape = '\\/' not in _json.dumps('/')
+   #+END_SRC
+
+   好奇当年这里是不是出过 bug (｀・ω・´)
+   
