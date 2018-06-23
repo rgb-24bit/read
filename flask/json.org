@@ -91,4 +91,29 @@
    #+END_SRC
 
    好奇当年这里是不是出过 bug (｀・ω・´)
+ 
+   文件编码相关的封装：
+   #+BEGIN_SRC python
+     def _wrap_reader_for_text(fp, encoding):
+         if isinstance(fp.read(0), bytes):
+             fp = io.TextIOWrapper(io.BufferedReader(fp), encoding)
+         return fp
+
+
+     def _wrap_writer_for_text(fp, encoding):
+         try:
+             fp.write('')
+         except TypeError:
+             fp = io.TextIOWrapper(fp, encoding)
+         return fp
+   #+END_SRC
+   
+   这部分的封装涉及到了 ~Python IO~ 的层次结构， 暂时不是清楚相关的内容。
+
+   但是研究了一下， 突然发现， ~io~ 模块在 ~Python2~ 和 ~Python3~ 中的行为是一样的， 输入输出都是 ~Unicode~ 对象。
+
+   这里， ~io.BufferedReader~ 是处理二进制数据的带缓冲的 ~I/O~ 层， ~io.TextIOWrapper~ 是一个编码和解码 Unicode 的文本处理层。
+
+   相关内容： [[http://python3-cookbook.readthedocs.io/zh_CN/latest/c05/p16_add_change_encoding_of_already_open_file.html][python3-cookbook]]
+   
    
