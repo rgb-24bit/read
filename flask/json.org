@@ -116,4 +116,156 @@
 
    相关内容： [[http://python3-cookbook.readthedocs.io/zh_CN/latest/c05/p16_add_change_encoding_of_already_open_file.html][python3-cookbook]]
    
+   #+BEGIN_SRC python
+     class JSONEncoder(_json.JSONEncoder):
+         """The default Flask JSON encoder.  This one extends the default simplejson
+         encoder by also supporting ``datetime`` objects, ``UUID`` as well as
+         ``Markup`` objects which are serialized as RFC 822 datetime strings (same
+         as the HTTP date format).  In order to support more data types override the
+         :meth:`default` method.
+         """
+
+         def default(self, o):
+             """Implement this method in a subclass such that it returns a
+             serializable object for ``o``, or calls the base implementation (to
+             raise a :exc:`TypeError`).
+             For example, to support arbitrary iterators, you could implement
+             default like this::
+                 def default(self, o):
+                     try:
+                         iterable = iter(o)
+                     except TypeError:
+                         pass
+                     else:
+                         return list(iterable)
+                     return JSONEncoder.default(self, o)
+             """
+             if isinstance(o, datetime):
+                 return http_date(o.utctimetuple())
+             if isinstance(o, date):
+                 return http_date(o.timetuple())
+             if isinstance(o, uuid.UUID):
+                 return str(o)
+             if hasattr(o, '__html__'):
+                 return text_type(o.__html__())
+             return _json.JSONEncoder.default(self, o)
+
+
+     class JSONDecoder(_json.JSONDecoder):
+         """The default JSON decoder.  This one does not change the behavior from
+         the default simplejson decoder.  Consult the :mod:`json` documentation
+         for more information.  This decoder is not only used for the load
+         functions of this module but also :attr:`~flask.Request`.
+         """
+   #+END_SRC
+
+   可以看一下 ~Json.loads~ 和 ~Json.dumps~ 的参数：
+   #+BEGIN_SRC python
+     json.loads(s, *, encoding=None, cls=None, object_hook=None, parse_float=None, parse_int=None, parse_constant=None, object_pairs_hook=None, **kw)
+
+     dumps(obj, *, skipkeys=False, ensure_ascii=True, check_circular=True, allow_nan=True, cls=None, indent=None, separators=None, default=None, sort_keys=False, **kw)
+   #+END_SRC
+
+   两个方法函数都有的参数： ~cls~, 分别对应 ~JSONDecoder~ 和 ~JSONEncoder~.
+
+   通过继承和重写这两个类的方法来定义适用于自己的对象的行为。
+
+   这里的代码中， 主要定义了 ~JSONEncoder~ 的行为， 针对的对象类型为 ~datetime~, ~date~ 和
+   ~uuid.UUID~ 以及定义了 ~__html__~ 方法的对象。
+
+   可以学习一下。
+
+   #+BEGIN_SRC python
+     def _dump_arg_defaults(kwargs):
+         """Inject default arguments for dump functions."""
+         if current_app:
+             bp = current_app.blueprints.get(request.blueprint) if request else None
+             kwargs.setdefault(
+                 'cls',
+                 bp.json_encoder if bp and bp.json_encoder
+                     else current_app.json_encoder
+             )
+
+             if not current_app.config['JSON_AS_ASCII']:
+                 kwargs.setdefault('ensure_ascii', False)
+
+             kwargs.setdefault('sort_keys', current_app.config['JSON_SORT_KEYS'])
+         else:
+             kwargs.setdefault('sort_keys', True)
+             kwargs.setdefault('cls', JSONEncoder)
+
+
+     def _load_arg_defaults(kwargs):
+         """Inject default arguments for load functions."""
+         if current_app:
+             bp = current_app.blueprints.get(request.blueprint) if request else None
+             kwargs.setdefault(
+                 'cls',
+                 bp.json_decoder if bp and bp.json_decoder
+                     else current_app.json_decoder
+             )
+         else:
+             kwargs.setdefault('cls', JSONDecoder)
+   #+END_SRC
+
+   构建 ~dump~ 和 ~load~ 的默认参数， 虽然涉及到了一些其他的对象， 但是还是不难看出这两个
+   函数的作用的。
+
+   基本流程都是：
+   1. 判断当前应用栈的顶部元素是否存在
+   2. 判断当前请求栈的顶部元素是否存在
+   3. 两个都存在， 根据应用和蓝图的配置确定默认参数
+   4. 不存在， 设置确定的默认参数
+
+   除了 ~flask~ 自身提供的 ~JSONDecoder~ 和 ~JSONEncoder~ 对象以外， 用户还可以尽情的定义自己的对象。
+
+   还可以针对不同的蓝图进行配置 (｀・ω・´)
+   
+   第一次看到自己检测编码：
+   #+BEGIN_SRC python
+     def detect_encoding(data):
+         """Detect which UTF codec was used to encode the given bytes.
+         The latest JSON standard (:rfc:`8259`) suggests that only UTF-8 is
+         accepted. Older documents allowed 8, 16, or 32. 16 and 32 can be big
+         or little endian. Some editors or libraries may prepend a BOM.
+         :param data: Bytes in unknown UTF encoding.
+         :return: UTF encoding name
+         """
+         head = data[:4]
+
+         if head[:3] == codecs.BOM_UTF8:
+             return 'utf-8-sig'
+
+         if b'\x00' not in head:
+             return 'utf-8'
+
+         if head in (codecs.BOM_UTF32_BE, codecs.BOM_UTF32_LE):
+             return 'utf-32'
+
+         if head[:2] in (codecs.BOM_UTF16_BE, codecs.BOM_UTF16_LE):
+             return 'utf-16'
+
+         if len(head) == 4:
+             if head[:3] == b'\x00\x00\x00':
+                 return 'utf-32-be'
+
+             if head[::2] == b'\x00\x00':
+                 return 'utf-16-be'
+
+             if head[1:] == b'\x00\x00\x00':
+                 return 'utf-32-le'
+
+             if head[1::2] == b'\x00\x00':
+                 return 'utf-16-le'
+
+         if len(head) == 2:
+             return 'utf-16-be' if head.startswith(b'\x00') else 'utf-16-le'
+
+         return 'utf-8'
+   #+END_SRC
+
+   这个东西就涉及到编码相关的内容了， 看不明白， 也不准备看明白。 目前就先用现成的库就足够了。
+
+   比如 [[https://github.com/chardet/chardet][chardet]].
+
    
