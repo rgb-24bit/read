@@ -268,4 +268,143 @@
 
    比如 [[https://github.com/chardet/chardet][chardet]].
 
+   接下来是几个对 ~json~ 本身方法的一层封装和扩展：
+   #+BEGIN_SRC python
+     def dumps(obj, **kwargs):
+         _dump_arg_defaults(kwargs)
+         encoding = kwargs.pop('encoding', None)
+         rv = _json.dumps(obj, **kwargs)
+         if encoding is not None and isinstance(rv, text_type):
+             rv = rv.encode(encoding)
+         return rv
+
+
+     def dump(obj, fp, **kwargs):
+         _dump_arg_defaults(kwargs)
+         encoding = kwargs.pop('encoding', None)
+         if encoding is not None:
+             fp = _wrap_writer_for_text(fp, encoding)
+         _json.dump(obj, fp, **kwargs)
+
+
+     def loads(s, **kwargs):
+         _load_arg_defaults(kwargs)
+         if isinstance(s, bytes):
+             encoding = kwargs.pop('encoding', None)
+             if encoding is None:
+                 encoding = detect_encoding(s)
+             s = s.decode(encoding)
+         return _json.loads(s, **kwargs)
+
+
+     def load(fp, **kwargs):
+         _load_arg_defaults(kwargs)
+         if not PY2:
+             fp = _wrap_reader_for_text(fp, kwargs.pop('encoding', None) or 'utf-8')
+         return _json.load(fp, **kwargs)
+   #+END_SRC
+
+   dump, dumps, load, loads 的源码的理解还是很简单的。
+
+   由于涉及到 ~Python2~ 和 ~Python3~ 的兼容问题， 所以这里的 ~text_type~ 来自于之前的 ~_compat~ 模块。
+
+   其中， ~text_type~ 为 ~unicode~, 而 ~string_type~ 为 ~byte~.
+
+   兼容是真的烦， 理解这一段代码在 ~Python2~ 和 ~Python3~ 下的行为， 有点绕。
+
+   #+BEGIN_SRC python
+     def htmlsafe_dumps(obj, **kwargs):
+         """Works exactly like :func:`dumps` but is safe for use in ``<script>``
+         tags.  It accepts the same arguments and returns a JSON string.  Note that
+         this is available in templates through the ``|tojson`` filter which will
+         also mark the result as safe.  Due to how this function escapes certain
+         characters this is safe even if used outside of ``<script>`` tags.
+         The following characters are escaped in strings:
+         -   ``<``
+         -   ``>``
+         -   ``&``
+         -   ``'``
+         This makes it safe to embed such strings in any place in HTML with the
+         notable exception of double quoted attributes.  In that case single
+         quote your attributes or HTML escape it in addition.
+         .. versionchanged:: 0.10
+            This function's return value is now always safe for HTML usage, even
+            if outside of script tags or if used in XHTML.  This rule does not
+            hold true when using this function in HTML attributes that are double
+            quoted.  Always single quote attributes if you use the ``|tojson``
+            filter.  Alternatively use ``|tojson|forceescape``.
+         """
+         rv = dumps(obj, **kwargs) \
+             .replace(u'<', u'\\u003c') \
+             .replace(u'>', u'\\u003e') \
+             .replace(u'&', u'\\u0026') \
+             .replace(u"'", u'\\u0027')
+         if not _slash_escape:
+             rv = rv.replace('\\/', '/')
+         return rv
+
+
+     def htmlsafe_dump(obj, fp, **kwargs):
+         """Like :func:`htmlsafe_dumps` but writes into a file object."""
+         fp.write(text_type(htmlsafe_dumps(obj, **kwargs)))
+   #+END_SRC
+
+   对 html 中一部分特殊字符的处理， 简单直接。
+
+   #+BEGIN_SRC python
+     def jsonify(*args, **kwargs):
+         indent = None
+         separators = (',', ':')
+
+         if current_app.config['JSONIFY_PRETTYPRINT_REGULAR'] or current_app.debug:
+             indent = 2
+             separators = (', ', ': ')
+
+         if args and kwargs:
+             raise TypeError('jsonify() behavior undefined when passed both args and kwargs')
+         elif len(args) == 1:  # single args are passed directly to dumps()
+             data = args[0]
+         else:
+             data = args or kwargs
+
+         return current_app.response_class(
+             dumps(data, indent=indent, separators=separators) + '\n',
+             mimetype=current_app.config['JSONIFY_MIMETYPE']
+         )
+
+
+     def tojson_filter(obj, **kwargs):
+         return Markup(htmlsafe_dumps(obj, **kwargs))
+   #+END_SRC
+
+   对于 jsonify, 不能同时使用位置参数和关键字参数。
+
+   还是很好理解的一个函数。
+
+   tojson_filter 将 obj 转换为 json 字符串， 同时将 html 特殊字符转义， 然后使用 Markup 标记
+   这一段字符串为安全的。
+
+   感觉可以将这个模块的部分内容修改一下收藏。
+
+   这一段的代码的理解有点绕， 换了一个思路， 既然是对 ~json~ 的封装和扩展， 那就看一下对 ~json~ 作了哪些改动即可。
+
+   ~dumps~ 中对参数进行了修改， 设置 ~encoding~ 参数的作用是对返回值进行处理， ~dumps~ 会使用默认的 ~encoding~ 设置。
+
+   也就是说， dumps 的行为与相应环境下的 ~json.dumps~ 的行为基本一致， 除了可以通过 ~encoding~ 设置返回的字符串的编码。
+
+   ~dump~ 也是如此， 处理可以通过 ~encoding~ 来对 ~fp~ 进行封装。
+
+   如果 ~fp~ 类似 ~io.open~ 的 ~file~ 对象， 就可以通过 ~encoding~ 改变编码设置。
+
+   ~Python2~ 的旧 ~open~ 返回的文件对象不能进行封装， 因此这应该是为 ~io.open~ 准备的。
+
+   ~loads~, 会对传入的字符串解码， 然后行为和 ~json.loads~ 基本相同， 一样不能设置 ~encoding~ 参数。
+
+   ~load~, 前面的猜测应该是对的， 如果不是 ~Python2~, 就可以通过 ~encoding~ 参数对文件对象进行一次封装。
+
+   总的来说， 行为和原始的 ~json~ 基本一致， 特殊的是 ~encoding~ 参数不是用于 ~json~ 的序列化与反序列化， 而是用于对序列化前或序列化后的对象
+   进行处理。
+
+   感觉差不多理清了， 这里对 ~json~ 的封装和扩展是针对 ~encoding~ 参数进行的， 序列化和反序列化使用默认的 ~encoding~ 参数， 而传入的 ~encoding~ 参数
+   用于在序列化前或序列化后的对象进行处理。
    
