@@ -7,6 +7,9 @@
 - [[#初始化模块][初始化模块]]
   - [[#依赖][依赖]]
   - [[#代码][代码]]
+- [[#tag-模块][TAG 模块]]
+  - [[#依赖-1][依赖]]
+  - [[#代码-1][代码]]
 
 * flask.json
   ~flask.json~ 是 ~flask~ 的一个子包， 处理和 ~json~ 相关的数据。
@@ -41,7 +44,7 @@
    + datetime: 日期时间相关的模块， 知道有这个对象， 但很少用过
 
    第三方库依赖：
-   + werkzeug.http.http_data: 格式化时间以匹配 RFC1123 日期格式
+   + werkzeug.http.http_date: 格式化时间以匹配 RFC1123 日期格式
 
      #+BEGIN_SRC python
        >>> http_date()
@@ -408,3 +411,184 @@
    感觉差不多理清了， 这里对 ~json~ 的封装和扩展是针对 ~encoding~ 参数进行的， 序列化和反序列化使用默认的 ~encoding~ 参数， 而传入的 ~encoding~ 参数
    用于在序列化前或序列化后的对象进行处理。
    
+* TAG 模块
+  这个模块的作用文档写的很清楚 [[https://github.com/pallets/flask/blob/1.0/flask/json/tag.py#L6][Tagged JSON]].
+
+** 依赖
+   这个模块的依赖就是我比较熟悉的了：
+   #+BEGIN_SRC python
+     from base64 import b64decode, b64encode
+     from datetime import datetime
+     from uuid import UUID
+
+     from jinja2 import Markup
+     from werkzeug.http import http_date, parse_date
+
+     from flask._compat import iteritems, text_type
+     from flask.json import dumps, loads
+   #+END_SRC
+
+   + werkzeug.http.parse_date: 相当于是 ~http_date~ 的逆方法， 可以将以下格式的时间转换
+     为 ~datetime~ 对象：
+     #+BEGIN_EXAMPLE
+       Sun, 06 Nov 1994 08:49:37 GMT  ; RFC 822, updated by RFC 1123
+       Sunday, 06-Nov-94 08:49:37 GMT ; RFC 850, obsoleted by RFC 1036
+       Sun Nov  6 08:49:37 1994       ; ANSI C's asctime() format
+     #+END_EXAMPLE
+
+** 代码
+   这个模块的核心基类：
+   #+BEGIN_SRC python
+     class JSONTag(object):
+         """Base class for defining type tags for :class:`TaggedJSONSerializer`."""
+
+         __slots__ = ('serializer',)
+
+         #: The tag to mark the serialized object with. If ``None``, this tag is
+         #: only used as an intermediate step during tagging.
+         key = None
+
+         def __init__(self, serializer):
+             """Create a tagger for the given serializer."""
+             self.serializer = serializer
+
+         def check(self, value):
+             """Check if the given value should be tagged by this tag."""
+             raise NotImplementedError
+
+         def to_json(self, value):
+             """Convert the Python object to an object that is a valid JSON type.
+             The tag will be added later."""
+             raise NotImplementedError
+
+         def to_python(self, value):
+             """Convert the JSON representation back to the correct type. The tag
+             will already be removed."""
+             raise NotImplementedError
+
+         def tag(self, value):
+             """Convert the value to a valid JSON type and add the tag structure
+             around it."""
+             return {self.key: self.to_json(value)}
+   #+END_SRC
+
+   另外一个配合这个类使用的关键类：
+   #+BEGIN_SRC python
+     class TaggedJSONSerializer(object):
+         """Serializer that uses a tag system to compactly represent objects that
+         are not JSON types. Passed as the intermediate serializer to
+         :class:`itsdangerous.Serializer`.
+         The following extra types are supported:
+         ,* :class:`dict`
+         ,* :class:`tuple`
+         ,* :class:`bytes`
+         ,* :class:`~flask.Markup`
+         ,* :class:`~uuid.UUID`
+         ,* :class:`~datetime.datetime`
+         """
+
+         __slots__ = ('tags', 'order')
+
+         #: Tag classes to bind when creating the serializer. Other tags can be
+         #: added later using :meth:`~register`.
+         default_tags = [
+             TagDict, PassDict, TagTuple, PassList, TagBytes, TagMarkup, TagUUID,
+             TagDateTime,
+         ]
+
+         def __init__(self):
+             self.tags = {}
+             self.order = []
+
+             for cls in self.default_tags:
+                 self.register(cls)
+
+         def register(self, tag_class, force=False, index=None):
+             """Register a new tag with this serializer.
+             :param tag_class: tag class to register. Will be instantiated with this
+                 serializer instance.
+             :param force: overwrite an existing tag. If false (default), a
+                 :exc:`KeyError` is raised.
+             :param index: index to insert the new tag in the tag order. Useful when
+                 the new tag is a special case of an existing tag. If ``None``
+                 (default), the tag is appended to the end of the order.
+             :raise KeyError: if the tag key is already registered and ``force`` is
+                 not true.
+             """
+             tag = tag_class(self)
+             key = tag.key
+
+             if key is not None:
+                 if not force and key in self.tags:
+                     raise KeyError("Tag '{0}' is already registered.".format(key))
+
+                 self.tags[key] = tag
+
+             if index is None:
+                 self.order.append(tag)
+             else:
+                 self.order.insert(index, tag)
+
+         def tag(self, value):
+             """Convert a value to a tagged representation if necessary."""
+             for tag in self.order:
+                 if tag.check(value):
+                     return tag.tag(value)
+
+             return value
+
+         def untag(self, value):
+             """Convert a tagged representation back to the original type."""
+             if len(value) != 1:
+                 return value
+
+             key = next(iter(value))
+
+             if key not in self.tags:
+                 return value
+
+             return self.tags[key].to_python(value[key])
+
+         def dumps(self, value):
+             """Tag the value and dump it to a compact JSON string."""
+             return dumps(self.tag(value), separators=(',', ':'))
+
+         def loads(self, value):
+             """Load data from a JSON string and deserialized any tagged objects."""
+             return loads(value, object_hook=self.untag)
+   #+END_SRC
+
+   这个， 嗯， 抽象工厂模式 ？
+
+   这个模块很容易扩展， 基于这两个类， 后序的扩展只需要继承 ~JSONTag~ 并实现相应的接口， 然后
+   在使用时通过 ~TaggedJSONSerializer.register~ 注册即可。
+
+   其他对 ~JSONTag~ 的继承实现可以不忙看， 搞清楚这两个类基本就搞清楚这个模块了。
+
+   首先， 实例化 ~TaggedJSONSerializer~ 对象的时候， 这个实例会自动添加 ~tags~ 和 ~order~ 这两个属性。
+
+   并调用 ~register~ 方法注册默认的 ~JSONTag~ 实现。
+
+   ~register~ 的流程为：
+   1. 实例化注册的 ~JSONTag~ 实现， 这里就可以明白， ~JSONTag~ 的 ~serializer~ 属性的来源了。
+   2. 获取注册的 ~JSONTag~ 实现的 ~key~ 属性
+   3. 如果 ~key~ 存在了标签 ~force~ 参数为 ~None~, 就抛出异常。 如果 ~force~ 参数不为 ~None~, 
+      便将原有的 ~JSONTag~ 实现覆盖。
+   4. 如果 ~index~ 为空， 则这个 ~JSONTag~ 实现添加到 ~order~ 列表末尾。 否则添加到指定 ~index~ 处
+
+   这里可以看到， 注册的 ~JSONTag~ 实现的实例同时保存在 ~tags~ 和 ~order~ 中， ~tags~ 是映射关系， 而
+   ~order~ 是顺序关系。
+
+   方法 ~tag~ 调用 ~JSONTag~ 对象的 ~check~ 方法检查该对象是否为需要被标记的对象， 这个顺序按照 ~order~ 进行。
+
+   如果是， 则使用 ~tag.tag~ 标记为 ~{self.key: self.to_json(value)}~.
+
+   而 ~untag~ 方法则根据标记后的 ~key~ 将其转换为原有对象。
+
+   ~next(iter(value))~ 取长度为 1 的序列的元素的操作也很骚。
+
+   这两个方法的配合感觉很精彩， 真滴很 nice !!!
+
+   ~dumps~ 和 ~loads~ 就配合这两个方法使用， 嗯， 很好， 很好 ！！！
+
+   这应该是我目前看过的源码中， 最精彩的操作之一了 (｀・ω・´)
