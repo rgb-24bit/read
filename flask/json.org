@@ -592,3 +592,171 @@
    ~dumps~ 和 ~loads~ 就配合这两个方法使用， 嗯， 很好， 很好 ！！！
 
    这应该是我目前看过的源码中， 最精彩的操作之一了 (｀・ω・´)
+
+   接下来是不同的 ~JSONTag~ 实现：
+   #+BEGIN_SRC python
+     class TagDict(JSONTag):
+         """Tag for 1-item dicts whose only key matches a registered tag.
+         Internally, the dict key is suffixed with `__`, and the suffix is removed
+         when deserializing.
+         """
+
+         __slots__ = ()
+         key = ' di'
+
+         def check(self, value):
+             return (
+                 isinstance(value, dict)
+                 and len(value) == 1
+                 and next(iter(value)) in self.serializer.tags
+             )
+
+         def to_json(self, value):
+             key = next(iter(value))
+             return {key + '__': self.serializer.tag(value[key])}
+
+         def to_python(self, value):
+             key = next(iter(value))
+             return {key[:-2]: value[key]}
+
+
+     class PassDict(JSONTag):
+         __slots__ = ()
+
+         def check(self, value):
+             return isinstance(value, dict)
+
+         def to_json(self, value):
+             # JSON objects may only have string keys, so don't bother tagging the
+             # key here.
+             return dict((k, self.serializer.tag(v)) for k, v in iteritems(value))
+
+         tag = to_json
+
+
+     class TagTuple(JSONTag):
+         __slots__ = ()
+         key = ' t'
+
+         def check(self, value):
+             return isinstance(value, tuple)
+
+         def to_json(self, value):
+             return [self.serializer.tag(item) for item in value]
+
+         def to_python(self, value):
+             return tuple(value)
+
+
+     class PassList(JSONTag):
+         __slots__ = ()
+
+         def check(self, value):
+             return isinstance(value, list)
+
+         def to_json(self, value):
+             return [self.serializer.tag(item) for item in value]
+
+         tag = to_json
+
+
+     class TagBytes(JSONTag):
+         __slots__ = ()
+         key = ' b'
+
+         def check(self, value):
+             return isinstance(value, bytes)
+
+         def to_json(self, value):
+             return b64encode(value).decode('ascii')
+
+         def to_python(self, value):
+             return b64decode(value)
+
+
+     class TagMarkup(JSONTag):
+         """Serialize anything matching the :class:`~flask.Markup` API by
+         having a ``__html__`` method to the result of that method. Always
+         deserializes to an instance of :class:`~flask.Markup`."""
+
+         __slots__ = ()
+         key = ' m'
+
+         def check(self, value):
+             return callable(getattr(value, '__html__', None))
+
+         def to_json(self, value):
+             return text_type(value.__html__())
+
+         def to_python(self, value):
+             return Markup(value)
+
+
+     class TagUUID(JSONTag):
+         __slots__ = ()
+         key = ' u'
+
+         def check(self, value):
+             return isinstance(value, UUID)
+
+         def to_json(self, value):
+             return value.hex
+
+         def to_python(self, value):
+             return UUID(value)
+
+
+     class TagDateTime(JSONTag):
+         __slots__ = ()
+         key = ' d'
+
+         def check(self, value):
+             return isinstance(value, datetime)
+
+         def to_json(self, value):
+             return http_date(value)
+
+         def to_python(self, value):
+             return parse_date(value)
+   #+END_SRC
+
+   这里用了一些递归， 感觉像这样在 *实例.属性* 的属性的方法中调用 *实例* 方法实现的递归
+   相对难理解一点。
+
+   咋一看还看不懂。
+
+   这部分代码的理解结合实际操作来理解要容易一点：
+   #+BEGIN_SRC python
+     In [1]: from flask.json.tag import TaggedJSONSerializer
+
+     In [2]: ts = TaggedJSONSerializer()
+
+     In [3]: ts.tag({' di': 2})  # TagDict
+     Out[3]: {' di': {' di__': 2}}
+
+     In [4]: ts.tag({' di': {' di': 2}})  # 递归
+     Out[4]: {' di': {' di__': {' di': {' di__': 2}}}}
+
+     In [5]: ts.tag({'key': {' di': 2}})  # PassDict
+     Out[5]: {'key': {' di': {' di__': 2}}}
+
+     In [6]: ts.tag(({'key': {' di': 2}},))  # TagTuple
+     Out[6]: {' t': [{'key': {' di': {' di__': 2}}}]}
+
+     In [7]: ts.tag([{'key': {' di': 2}}])  # PassList
+     Out[7]: [{'key': {' di': {' di__': 2}}}]
+
+     In [8]: ts.tag(b'json')  # TagBytes
+     Out[8]: {' b': 'anNvbg=='}
+
+     ...
+   #+END_SRC
+
+   把递归理清就好理解多了。
+
+   通过不断的递归保证每一个可标记的元素都被标记。
+
+   这里也算是一个遍历一个各种序列， 映射类型组合的方案。
+
+   可以收藏这一部分的代码。
+
