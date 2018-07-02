@@ -13,3 +13,5 @@
   + [[file:globals.org][globals]] - /global objects/
   + [[file:json.org][json]] - /json related/
   + [[file:signals.org][signals]] - /signals related/
+
+  差不多两周的时间都是在看 ~flask~ 的源码， 我觉得我需要换个口味......
