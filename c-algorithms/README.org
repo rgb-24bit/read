@@ -8,3 +8,5 @@
 
   + 源码链接： [[https://github.com/fragglet/c-algorithms][c-algorithms]]
 
+* 目前进度
+  + [[file:list.org][list]] - /Doubly-linked list/
