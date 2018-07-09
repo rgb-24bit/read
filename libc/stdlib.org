@@ -1,0 +1,105 @@
+#+TITLE:      stdlib
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#stdlib][stdlib]]
+- [[#abs][abs]]
+- [[#div][div]]
+- [[#labs--ldiv][labs & ldiv]]
+
+* stdlib
+  ~stdlib.h~ 是我目前使用频率最多的头文件之一， 包含了很多有用的内容。
+
+  在 [[https://book.douban.com/subject/3775842/][C 标准库]] 这本书上将这个头文件包含的函数分为了 ~6~ 组：
+  + 整型数学(abs、 div、 labs 和 ldiv) -- 执行简单的整型算数
+  + 算法(bsearch、 qsort、 rand 和 srand) -- 收集那些复杂而又被广泛使用的、 足以打包为库函数的操作
+  + 文本转换(atof、 atoi、 atol、 strtod、 strtol 和 strtoul) -- 确定文本表示的编码算术值
+  + 多字节转换(mblen、 mbstowcs、 mbtowc、 wcstombs 和 wctomb) -- 多字节和宽字符字符编码之间的转换
+  + 存储分配(calloc、 free、 malloc 和 realloc) -- 管理数据对象的堆
+  + 环境接口(abort、 atexit、 exit、 getenv 和 system) -- 程序和执行环境之间的接口
+
+  书中 ~<stdlib.h>~ 的部分内容：
+  #+BEGIN_SRC C
+    #define EXIT_SUCCESS 0
+
+    typedef struct {
+      int quot;
+      int rem;
+    } div_t;
+
+    typedef struct {
+      long quot;
+      long rem;
+    } ldiv_t;
+
+    typedef struct {
+      unsigned char _State;
+      unsigned short _Wchar;
+    } _Mbsave;
+
+    typedef int _Cmpfun(const void *, const void *);
+  #+END_SRC
+
+* abs
+  函数 ~abs~ 计算整数的绝对值：
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+
+    int abs(int n) {
+      return n < 0 ? -n : n;
+    }
+  #+END_SRC
+
+  贴的代码没有完全参考书上的， 而是按照自己习惯的方式进行了改动， 反正不影响理解即可。
+
+* div
+  函数 ~div~ 计算分子 ~number~ 除以分母 ~denom~ 所得的商和余数：
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+
+    div_t div(int number, int denom) {
+      div_t val;
+
+      val.quot = number / denom;
+      val.rem = number - denom * val.quot;
+
+      if (val.quot < 0 && 0 < val.rem) {
+        val.quot += 1;
+        val.rem -= denom;
+      }
+
+      return val;
+    }
+  #+END_SRC
+
+  中间的 ~if~ 是处理余数符号错误的问题的， 没有这一段的话， ~div(-10, 3)~ 的结果会是： ~[-4, 2]~.
+
+  ~-10 / 3~ 的结果是 ~-3.3~, 向下取整就成了 ~-4~, 而余数就成了 ~2~.
+
+  通过 ~if~ 这一段的处理， 负数部分 *向上取整*, 得到的结果就是 ~[-3, -1]~.
+  
+* labs & ldiv
+  道理和 ~abs~ 与 ~div~ 一样：
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+
+    long abs(long n) {
+      return n < 0 ? -n : n;
+    }
+
+    ldiv_t ldiv(long number, long denom) {
+      ldiv_t val;
+
+      val.quot = number / denom;
+      val.rem = number - denom * val.quot;
+
+      if (val.quot < 0 && 0 < val.rem) {
+        val.quot += 1;
+        val.rem -= denom;
+      }
+
+      return val;
+    }
+  #+END_SRC
+
