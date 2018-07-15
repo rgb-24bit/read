@@ -11,6 +11,8 @@
 - [[#bsearch][bsearch]]
 - [[#rand--srand][rand & srand]]
 - [[#_stoul][_Stoul]]
+- [[#_stod][_Stod]]
+- [[#前半部分汇总][前半部分汇总]]
 
 * stdlib
   ~stdlib.h~ 是我目前使用频率最多的头文件之一， 包含了很多有用的内容。
@@ -402,5 +404,48 @@
         return (long)x;
       }
     }
+  #+END_SRC
+
+* _Stod
+  ~_Stod~ 是用来实现 ~atof~ 和 ~strtod~ 这两个函数的。
+
+  分别将字符串转换为 ~float~ 和 ~double~ 类型的值。
+
+* 前半部分汇总
+  看了这部分 *C 标准库* 函数的作用和实现代码后， 发现， 果然还是对它们的作用和使用更感兴趣。
+
+  而更多函数的实现看起来都很枯燥， 当然也有部分例外。
+
+  枯燥的源码阅读起来收获少还浪费时间， 所以， 后面的源码找感兴趣的浏览一下， 不感兴趣的直接略过。
+
+  顺便汇总一下前面这些函数的原型：
+  #+BEGIN_SRC C
+    // 求绝对值
+    int abs(int num);
+    long labs(long num);
+
+    // 同时计算商和余数
+    div_t div(int number, int denom);
+    ldiv_t ldiv(long number, long denom);
+
+    // 排序和查找
+    void qsort(void* base, size_t count, size_t size,
+               int (*comp)(const void *, const void *));
+    void* bsearch(const void *key, const void *base, size_t count, size_t size,
+                   int (*comp)(const void*, const void*));
+
+    // 随机数
+    int rand(void);
+    void srand(unsigned int seed);
+
+    // 字符串转整数
+    int atoi(const char* s);
+    long atol(count char* s);
+    long strtol(count char* s, char** endptr, int base);
+    unsigned long strtoul(const char* s, char** endptr, int base);
+
+    // 字符串转浮点数
+    double atof(const char* s);
+    double strtod(const char* s, char** endptr);
   #+END_SRC
 
