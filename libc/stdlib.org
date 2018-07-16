@@ -13,6 +13,8 @@
 - [[#_stoul][_Stoul]]
 - [[#_stod][_Stod]]
 - [[#前半部分汇总][前半部分汇总]]
+- [[#多字节字符函数][多字节字符函数]]
+- [[#内存管理函数][内存管理函数]]
 
 * stdlib
   ~stdlib.h~ 是我目前使用频率最多的头文件之一， 包含了很多有用的内容。
@@ -448,4 +450,81 @@
     double atof(const char* s);
     double strtod(const char* s, char** endptr);
   #+END_SRC
+
+* 多字节字符函数
+  这一部分的函数看的有点懵逼， 虽然之前了解过宽字符和多字节字符的概念， 但是当时的理解
+  似乎不是很透彻， 现在这部分函数的使用理解起来都有些困难， 不说理解源码了......
+
+  + int mblen(const char* s, size_t n) :: 确定 ~s~ 指向的的多字节 *字符* 的 *字节数*, 如果 ~s~ 指向的是一个
+       多字节 *字符串*, 那么 ~mblen~ 也只会返回头一个多字节字符的字节数， 剩下的字符串不做计算。
+
+       确定一个多字节字符串的长度可以像这样：
+       #+BEGIN_SRC C
+         #include <string.h>
+         #include <stdlib.h>
+         #include <locale.h>
+         #include <stdio.h>
+
+         // the number of characters in a multibyte string is the sum of mblen()'s
+         // note: the simpler approach is mbstowcs(NULL, str, sz)
+         size_t strlen_mb(const char* ptr) {
+           size_t result = 0;
+           const char* end = ptr + strlen(ptr);
+           mblen(NULL, 0); // reset the conversion state
+           while(ptr < end) {
+             int next = mblen(ptr, end - ptr);  // multibyte character size
+             if(next == -1) {
+               perror("strlen_mb");
+               break;
+             }
+             ptr += next;
+             ++result;
+           }
+           return result;
+         }
+
+         int main(void) {
+           setlocale(LC_ALL, "en_US.utf8");
+           const char* str = "z\u00df\u6c34\U0001f34c";
+           printf("The string %s consists of %zu bytes, but only %zu characters\n",
+                  str, strlen(str), strlen_mb(str));
+         }
+       #+END_SRC
+
+       可能的输出：
+       #+BEGIN_EXAMPLE
+         The string zß水🍌 consists of 10 bytes, but only 4 characters
+       #+END_EXAMPLE
+
+       判断当前多字节字符是否结束应该和字符编码的内容相关......
+
+  + int mbtowc(wchar_t* pwc, const char* s, size_t n) :: 将下一个多字节字符转换成宽字符
+
+  + size_t mbstowcs(wchar_t* wcs, const char* s, size_t n) :: 将多字节字符串转换成宽字符串
+
+  + int wctomb(char* s, wchar wchar) :: 将宽字符转换成其多字节表示
+
+  + size_t wcstombs(char* s, const wchar_t* wcs, size_t n) :: 将宽字符串转换成多字节字符串 
+
+  感觉这部分的代码应该抛开字符编码进行理解， 如果不考虑编码的话， 这些函数的作用就是将 *单字节* 数据
+  和 *多字节* 数据之间转换， 如 ~char~ 和 ~int~.
+
+  编码影响这个转换规则。
+
+* 内存管理函数
+  这应该是相当熟悉的几个函数了：
+  #+BEGIN_SRC C
+    void* malloc(size_t size);
+    void* calloc(size_t nmemb, size_t size);
+    void* realloc(void* ptr, size_t size);
+    void free(void* ptr);
+  #+END_SRC
+
+  在之前的操作系统使实验中已经了解过内存管理函数的实现了， 发现这个实现和我想象的区别有点大......
+
+  函数使用：
+  + ~malloc~ 申请指定大小的内存空间， 不初始化
+  + ~calloc~ 申请 ~nmemb * size~ 大小的内存空间， 初始化为 0
+  + ~realloc~ 将 ~ptr~ 指向的对象的大小改变为由 ~size~ 指定的大小。不初始化。 和实现相关， 返回的地址可能和 ~ptr~ 原地址不同。
+  + ~free~ 释放内存
 
