@@ -15,6 +15,7 @@
 - [[#前半部分汇总][前半部分汇总]]
 - [[#多字节字符函数][多字节字符函数]]
 - [[#内存管理函数][内存管理函数]]
+- [[#环境通信函数][环境通信函数]]
 
 * stdlib
   ~stdlib.h~ 是我目前使用频率最多的头文件之一， 包含了很多有用的内容。
@@ -527,4 +528,132 @@
   + ~calloc~ 申请 ~nmemb * size~ 大小的内存空间， 初始化为 0
   + ~realloc~ 将 ~ptr~ 指向的对象的大小改变为由 ~size~ 指定的大小。不初始化。 和实现相关， 返回的地址可能和 ~ptr~ 原地址不同。
   + ~free~ 释放内存
+
+* 环境通信函数
+  这几个函数就是在和操作系统搞 ~PY~ 了 @_@
+
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+    #include <signal.h>
+
+    void abort(void) {
+      raise(SIGABRT);
+      exit(EXIT_FAILTURE);
+    }
+  #+END_SRC
+
+  函数 ~abort~ 通过发送 ~SIGABRT~ 使程序异常终止， 当然， 也可以自定义 ~SIGABRT~ 信号处理程序改变这个函数的行为。
+
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+
+    extern void (*_Atfuns[])(void);
+    extern size_t _Atcount;
+
+    int atexit(void (*func)(void)) {
+      if (_Atcount == 0) {
+        return -1;
+      }
+      _Atfuns[--_Atcount] = func;
+      return 0;
+    }
+  #+END_SRC
+
+  emmm, 函数指针数组......
+
+  函数指针都没用过几次的我......
+
+  ~extern~ 也没有用过 QAQ.
+
+  #+BEGIN_SRC C
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include "yfuns.h"
+
+    #define NATS 32
+
+    void (*_Atfuncs[NATS])(void) = {0};
+    size_t _Atcount = NATS;
+
+    void exit(int status) {
+      while (_Atcount < NATS) {
+        (*_Atfuncs[_Atcount++])();
+      }
+
+      size_t i;
+      for (i = 0; i < FOPEN_MAX; ++i) {
+        if (_File[i]) {
+          fclose(_File[i]);
+        }
+      }
+
+      _Exit(status);
+    }
+  #+END_SRC
+
+  原来函数指针数组要这样定义。
+
+  对于 ~_File~ 和 ~FOPEN_MAX~, 是 ~stdio~ 部分的内容， 大概是允许的最大文件打开数量和保存文件描述符的数组。 Maybe.
+
+  头文件 ~yfuns~ 提供宏 ~_Exit~.
+
+  可以看到， 通过 ~atexit~ 注册的函数会在 ~exit~ 时执行。
+
+  先注册后执行。
+
+  原来 C 语言还有这种东西， 那岂不是其他语言也有 ？
+
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+    #include <string.h>
+    #include "yfuns.h"
+
+    char* getenv(const char* name) {
+      const char* s;
+      size_t n = strlen(name);
+
+      for (s = _Evp; *s; s += strlen(s) + 1) {
+        if (!strncmp(s, name, n) && s[n] == '=') {
+          return (char*)&s[n + 1];
+        }
+      }
+
+      return NULL;
+    }
+  #+END_SRC
+  
+  妈耶， 书上好多印刷错误......
+
+  看这个函数的意思， 系统环境变量保存在某个区域， 并存在一个指针指向这个区域的首地址。
+
+  这个区域中的每个环境变量都用 ~\0~ 进行了分割( ~s += strlen(s) + 1~ ).
+
+  环境变量保存的形式为 ~name=val~.
+
+  #+BEGIN_SRC C
+    #include <stdlib.h>
+
+    int _Execl(const char*, const char*, ...);
+    int _Fork(void);
+    int _Wait(int*);
+
+    int system(const char* s) {
+      if (s) {
+        int pid = _Fork();
+
+        if (pid < 0) {
+          ;
+        } else if (pid == 0) {
+          _Execl("/bin/sh", "sh", "-C", s, NULL);
+          exit(EXIT_FAILURE);
+        } else {
+          while (_Wait(NULL) != pid);
+      }
+    }
+  #+END_SRC
+
+  emmm, 缺页了 (ノ｀Д)ノ
+
+  简单浏览一下的话， 是新建了一个子进程来执行命令， ~Python~ 的 ~subprocess~ 模块貌似就可以用来做这事， 嗯，
+  大家都一样。
 
