@@ -6,3 +6,6 @@
   ~blinker~ 是一个 ~Python~ 的事件/信号 调度系统， ~flask~ 的信号机制就是通过 ~blinker~ 实现的。
 
   + 源码链接： [[https://github.com/jek/blinker][blinker]]
+
+* 目前进度
+  + [[file:saferef.org][saferef]]
