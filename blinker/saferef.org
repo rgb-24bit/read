@@ -76,4 +76,55 @@
 
   + [[https://github.com/jek/blinker/blob/master/blinker/_saferef.py#L88][BoundMethodWeakref]]
 
+  这个类的代码才是真滴绕， 用到了一些特殊的操作， 头晕 @_@
+
+  #+BEGIN_SRC python
+    def __new__(cls, target, on_delete=None, *arguments, **named):
+        key = cls.calculate_key(target)
+        current = cls._all_instances.get(key)
+        if current is not None:
+            current.deletion_methods.append(on_delete)
+            return current
+        else:
+            base = super(BoundMethodWeakref, cls).__new__(cls)
+            cls._all_instances[key] = base
+            base.__init__(target, on_delete, *arguments, **named)
+            return base
+  #+END_SRC
+
+  首先判断 ~_all_instances~ 中是否存在目标的弱引用
   
+  然后， 后面这一堆代码没啥用啊......
+
+  ~current.deletion_methods.append~, 返回的是 ~BoundMethodWeakref~ 的实例， 那么之后就会调用 ~__init__~ 方法。
+
+  ~__init__~ 里的：
+  #+BEGIN_SRC python
+    self.deletion_methods = [on_delete]
+  #+END_SRC
+
+  不就直接干掉你这里的工作了吗......
+
+  ~else~ 里面也一样， ~base.__init__~ 调用后依然还是要调用 ~__init__~, 相当于重复调用了 QAQ
+
+  还以为是什么地方理解错了， 要这样写， 结果， 是这里有问题 ！！！
+
+  剩下的代码就比较好理解了， 主要是对弱引用的使用。
+
+  #+BEGIN_SRC python
+    ref = weakref.ref(obj)
+  #+END_SRC
+
+  ~ref()~ 会返回 ~obj~ 的强引用。
+
+  类似 ~obj.method.__func__.__get__(obj)~ 会返回绑定的实例方法。
+
+  emmm, ~__call__~ 里的代码是不是可以这样：
+  #+BEGIN_SRC python
+    def __call__(self):
+        target = self.weak_self()
+        if target is not None:
+            return self.weak_func()
+        return None
+  #+END_SRC
+
