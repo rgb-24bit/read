@@ -10,4 +10,3 @@
 * 目前进度
   + [[file:stdlib.org][sdtlib]] - /standard library/
 
-  /DEADLINE: 2018-07-17/
