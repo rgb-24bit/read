@@ -18,6 +18,8 @@
   + [[file:chapter-6.org][Chapter 6]] - /flask_mail./
   + [[file:chapter-7.org][Chapter 7]] - /flask(Blueprint)./
 
+  /DEADLINE: 2018-05-25/
+
 * 相关链接
   + [[https://github.com/pallets/flask][flask]] - *Flask* 源码链接
   + [[https://github.com/mitsuhiko/flask-sqlalchemy][flask-sqlalchemy]] - 将 *SQLAlchemy* 支持添加到 *Flask*
