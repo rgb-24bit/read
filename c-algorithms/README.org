@@ -11,4 +11,3 @@
 * 目前进度
   + [[file:list.org][list]] - /Doubly-linked list/
 
-  /DEADLINE: 2018-07-04/
