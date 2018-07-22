@@ -12,4 +12,3 @@
   + [[file:utilities.org][utilities]]
   + [[file:base.org][base]]
 
-  /DEADLINE: 2018-07-22/
