@@ -1,0 +1,133 @@
+#+TITLE:      base
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#preconditions][Preconditions]]
+
+* Preconditions
+  这个类存在第三方依赖， 但是都是 *注解类*, 对源码的阅读没有太多影响。
+
+  #+BEGIN_SRC java
+    public final class Preconditions {
+      private Preconditions() {}
+    }
+  #+END_SRC
+  
+  ~final~ 修饰， 这个类不能被继承， ~private~ 的构造方法， 这个类不能实例化。
+  
+  内部的大多数方法都有很多个 *重载*, 还是先看一下没有重载的几个方法：
+  #+BEGIN_SRC java
+    static String format(@NullableDecl String template, @NullableDecl Object... args) {
+      template = String.valueOf(template); // null -> "null"
+
+      args = args == null ? new Object[] {"(Object[])null"} : args;
+
+      // start substituting the arguments into the '%s' placeholders
+      StringBuilder builder = new StringBuilder(template.length() + 16 * args.length);
+      int templateStart = 0;
+      int i = 0;
+      while (i < args.length) {
+        int placeholderStart = template.indexOf("%s", templateStart);
+        if (placeholderStart == -1) {
+          break;
+        }
+        builder.append(template, templateStart, placeholderStart);
+        builder.append(args[i++]);
+        templateStart = placeholderStart + 2;
+      }
+      builder.append(template, templateStart, template.length());
+
+      // if we run out of placeholders, append the extra args in square braces
+      if (i < args.length) {
+        builder.append(" [");
+        builder.append(args[i++]);
+        while (i < args.length) {
+          builder.append(", ");
+          builder.append(args[i++]);
+        }
+        builder.append(']');
+      }
+
+      return builder.toString();
+    }
+  #+END_SRC
+
+  用到了 *可变长参数*, 虽然在我买的教材上没有讲到这个东西， 但是搜了一下， 看懂代码还是不难的。
+
+  #+BEGIN_SRC java
+    template = String.valueOf(template); // null -> "null"
+  #+END_SRC
+
+  用的是 ~String.valueOf(Object obj)~ 这个重载， 如果参数是 ~null~, 那么返回字符串形式的 ~null~.
+
+  否则， 返回 ~obj.toString~. 而字符串 ~toString~ 就是它本身。
+
+  对 ~args~ 的处理没什么好说的， 比较感兴趣的是 ~builder~ 这部分。
+
+  这个 ~format~ 方法只会处理 ~template~ 中的 ~%s~, 虽然功能上没有 ~String.format~ 强大， 但是
+  ~template~ 允许空值， 使用上就安全不少。
+
+  ~builder.append(template. templateStart. placeholderStart)~, 用的是这个重载：
+  #+BEGIN_SRC java
+    append(CharSequence s, int start, int end)
+  #+END_SRC
+
+  原来 ~String~ 和 ~StringBuilder~ 这些都是 ~CharSequence~ 的子类。
+
+  而 ~builder.append(args[i++])~ 使用的则是：
+  #+BEGIN_SRC java
+    public StringBuilder append(Object obj)
+  #+END_SRC
+
+  内部好像是调用 ~String.valueOf(obj)~.
+
+  #+BEGIN_SRC java
+    if (i < args.length) {
+      builder.append(" [");
+      builder.append(args[i++]);
+      while (i < args.length) {
+        builder.append(", ");
+        builder.append(args[i++]);
+      }
+      builder.append(']');
+    }
+  #+END_SRC
+
+  完整的数组的话， 感觉可以用 ~Arrays.toString(args)~ 来代替这个步骤， 但是这个数组需要截断一部分。
+
+  三个重载超级多的方法：
+  #+BEGIN_SRC java
+    // 判断 expression 是否为 true, 如果为 false 就抛出 IllegalArgumentException
+    public static void checkArgument(boolean expression, ...);
+
+    // 判断 expression 是否为 true, 如果为 false, 就抛出 IllegalStateException
+    public static void checkState(boolean expression, ...);
+
+    // 判断 reference 是否为 null, 如果是 null, 就抛出 NullPointerException, 否则返回 reference
+    public static <T> T checkNotNull(T reference, ...);
+  #+END_SRC
+  
+  这三个方法的重载和文档， 差不多都有 ~1290~ 行了 @_@.
+
+  剩下的几个方法：
+  #+BEGIN_SRC java
+    // 判断 index 是否合法， 如果 index < 0 || index >= size 就抛出 IndexOutOfBoundsException
+    public static int checkElementIndex(int index, int size);
+    public static int checkElementIndex(int index, int size, @NullableDecl String desc);
+    private static String badElementIndex(int index, int size, @NullableDecl String desc);
+
+    // 一样判断 index
+    public static int checkPositionIndex(int index, int size);
+    public static int checkPositionIndex(int index, int size, @NullableDecl String desc);
+    private static String badPositionIndex(int index, int size, @NullableDecl String desc);
+
+    // 指定范围判断 index
+    public static void checkPositionIndexes(int start, int end, int size);
+    private static String badPositionIndexes(int start, int end, int size);
+  #+END_SRC
+
+  ~Java~ 果然哆嗦......
+
+  感觉 ~checkElementIndex~ 和 ~checkPositionIndex~ 的功能差不多......
+
