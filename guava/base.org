@@ -4,6 +4,10 @@
 
 * Table of Contents                                       :TOC_4_gh:noexport:
 - [[#preconditions][Preconditions]]
+- [[#调整策略][调整策略]]
+- [[#absent--present][Absent & Present]]
+- [[#optional][Optional]]
+- [[#调整策略-1][调整策略]]
 
 * Preconditions
   这个类存在第三方依赖， 但是都是 *注解类*, 对源码的阅读没有太多影响。
@@ -131,3 +135,70 @@
 
   感觉 ~checkElementIndex~ 和 ~checkPositionIndex~ 的功能差不多......
 
+* 调整策略
+  看 ~guava~ 的主要目的是学习 ~Java~ 的使用， 而不是 ~guava~ 的使用。 像之前那个类中各种重载， 功能上相近的方法就不需要重复了。
+
+  简单的代码简单略过， 有意思的代码在仔细研究。
+
+* Absent & Present
+  ~Absent~ 是对 ~Optional~ 这个类的继承， 有点疑惑的是这个类里面并没有 ~import java.util.Optional~ ？
+
+  类 ~Optional~ 属于 ~java8~ 的新特性， 似乎经常和 ~lambda~ 放在一起使用。
+
+  这两者我都还没有太多的了解， 但是找到了两篇很好的博客：
+  + [[https://lw900925.github.io/java/java8-optional.html][Java 8新特性（三）：Optional类]]
+  + [[http://blog.oneapm.com/apm-tech/226.html][深入浅出 Java 8 Lambda 表达式]]
+
+  卧槽， ~Optional~ 原来在 ~base~ 这个包有实现一个 ~Optional~, 难怪没有 ~import~.
+
+  emmmm, 看 ~Python~ 代码中发现前面没有定义的东西估计是在后面， 然鹅， ~Java~ 不仅后面可能有， 同一个包里面还需要了解一下......
+
+  先去看 ~Optional~ 的代码。
+  
+  这个的代码还是和 ~Present~ 放在一起看比较好。
+
+  然而这两个的代码还真的没有什么看头， 略过略过。
+
+* Optional
+  #+BEGIN_SRC java
+    import java.io.Serializable;
+    import java.util.Iterator;
+    import java.util.Set;
+  #+END_SRC
+
+  这三个 ~Iterator~ 完全不熟， ~Set~ 和 ~Serializable~ 还有点了解。
+
+  感觉上 ~Iterator~ 是个好东西， 虽然只是一个接口， 功能还是要自己实现 QAQ
+
+  ~Optional~ 中功能的对应实现：
+  #+BEGIN_SRC java
+    //  equivalent to Optional.empty
+    public static <T> Optional<T> absent() {
+      return Absent.withType();
+    }
+
+    // equivalent to Optional.of
+    public static <T> Optional<T> of(T reference) {
+      return new Present<T>(checkNotNull(reference));
+    }
+
+    // equivalent to Optional.ofNullable
+    public static <T> Optional<T> fromNullable(@NullableDecl T nullableReference) {
+      return (nullableReference == null) ? Optional.<T>absent() : new Present<T>(nullableReference);
+    }
+  #+END_SRC
+ 
+  emmm, ~Absent~ 和 ~Present~...
+
+  昨天和今天的代码阅读下来， 我明显的感受到了 ~Java~ 和 ~Python~ 中命名风格的不同， 多的不说， 就说这长度， ~Java~ 厉害。
+
+  ~Optional.<T>absent()~ 这个泛型的使用还是头一次见， 在看看 ~absent~ 的声明， 这个可以记一下。
+
+  剩下的代码， 略过。
+
+* 调整策略
+  我觉得这样的效率还是有点低， 相当多的时间放在了没有多少用的东西上面。
+
+  而且要全部看完的话， 各种依赖关系， 工作量还真不小。
+
+  接下来的阅读方式修改为： 有用的， 摘取代码片段阅读， 无用的， 简单略过。
