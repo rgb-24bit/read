@@ -8,6 +8,8 @@
 - [[#absent--present][Absent & Present]]
 - [[#optional][Optional]]
 - [[#调整策略-1][调整策略]]
+- [[#enumsgetfield][Enums.getField]]
+- [[#objects][Objects]]
 
 * Preconditions
   这个类存在第三方依赖， 但是都是 *注解类*, 对源码的阅读没有太多影响。
@@ -202,3 +204,43 @@
   而且要全部看完的话， 各种依赖关系， 工作量还真不小。
 
   接下来的阅读方式修改为： 有用的， 摘取代码片段阅读， 无用的， 简单略过。
+* Enums.getField
+  #+BEGIN_SRC java
+    public static Field getField(Enum<?> enumValue) {
+      Class<?> clazz = enumValue.getDeclaringClass();
+      try {
+        return clazz.getDeclaredField(enumValue.name());
+      } catch (NoSuchFieldException impossible) {
+        throw new AssertionError(impossible);
+      }
+    }
+  #+END_SRC
+
+  ~Java~ 反射， 昨天了解了一下， 今天就遇上了。
+
+  首先获取类， 在根据字段名获取字段。
+
+* Objects
+  这个类的两个方法可以看一下：
+  #+BEGIN_SRC java
+    public final class Objects extends ExtraObjectsMethodsForWeb {
+      private Objects() {}
+
+      //  java 7 and later => Objects.equals(java.lang.Object, java.lang.Object)
+      public static boolean equal(@NullableDecl Object a, @NullableDecl Object b) {
+        return a == b || (a != null && a.equals(b));
+      }
+
+      // java 7 and later =>  Objects.hash(java.lang.Object...)
+      public static int hashCode(@NullableDecl Object... objects) {
+        return Arrays.hashCode(objects);
+      }
+    }
+  #+END_SRC
+
+  第一个 ~equal~ 判断两个可能为 ~null~ 的对象是否相等， ~Java7~ 可以用 ~Object.equals~ 代替。
+
+  而第二个 ~hashCode~ 可以获取一串对象的 ~hash~ 值， 到了 ~Java7~ 也可以用 ~Object.hash(java.lang.Object...)~ 代替。
+
+  emmm, 感觉 ~guava~ 存在的时间好久远了， 好多东西到了高版本都有替代的了 QAQ
+
