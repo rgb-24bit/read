@@ -10,6 +10,9 @@
 - [[#调整策略-1][调整策略]]
 - [[#enumsgetfield][Enums.getField]]
 - [[#objects][Objects]]
+- [[#ticker][Ticker]]
+- [[#stopwatch][Stopwatch]]
+- [[#调整策略-2][调整策略]]
 
 * Preconditions
   这个类存在第三方依赖， 但是都是 *注解类*, 对源码的阅读没有太多影响。
@@ -243,4 +246,63 @@
   而第二个 ~hashCode~ 可以获取一串对象的 ~hash~ 值， 到了 ~Java7~ 也可以用 ~Object.hash(java.lang.Object...)~ 代替。
 
   emmm, 感觉 ~guava~ 存在的时间好久远了， 好多东西到了高版本都有替代的了 QAQ
+
+* Ticker
+  #+BEGIN_SRC java
+    public abstract class Ticker {
+      protected Ticker() {}
+
+      public abstract long read();
+
+      public static Ticker systemTicker() {
+        return SYSTEM_TICKER;
+      }
+
+      private static final Ticker SYSTEM_TICKER =
+          new Ticker() {
+            @Override
+            public long read() {
+              return Platform.systemNanoTime();
+            }
+          };
+    }
+  #+END_SRC
+
+  原来匿名类还可以这样用， 书上只提到了接口， 结果抽象类也是可以的。
+
+  而且在抽象类内部这样， emmm, 感觉很 nice.
+
+* Stopwatch
+  这个应该是用来计时的工具类， 感觉有些地方可以学习一下：
+  
+  #+BEGIN_SRC java
+    public static Stopwatch createStarted() {
+      return new Stopwatch().start();
+    }
+
+    public Stopwatch start() {
+      checkState(!isRunning, "This stopwatch is already running.");
+      isRunning = true;
+      startTick = ticker.read();
+      return this;
+    }
+  #+END_SRC
+  
+  ~return this~, 使得可以直接通过 ~createStarted~ 开始计时， 很方便。
+
+* 调整策略
+  第三次调整策略 QAQ
+
+  目前来说， ~guava~ 是我目前看过的代码中源码量最多的， 统计了一下， 就只是 ~guava~ 主体部分的代码量就有： ~142663~ 行。
+
+  emmmm, 我能说啥， 我写过的代码加起来都还没有这么多......
+
+  如真的要一个类一个类的看完的话......
+
+  调整策略的主要原因还是感觉效率太低了， 同时， 看到这些好的代码也想截取一部分处理， 可以单独用到其他地方。
+
+  所以说， 源码阅读的策略需要调整， 目前调整为：
+  1. 优先看容易看懂的代码， 毕竟 ~Java~ 的学习时间并不长， 有些地方着实看不太懂， 要弄清楚的话需要的时间不少， 还是慢慢来
+  2. 阅读笔记由偏向实时记录转为偏向总结
+  3. 源码阅读过程中进行代码收集， 做优秀代码的搬运工 @_@
 
