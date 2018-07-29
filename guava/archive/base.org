@@ -13,6 +13,7 @@
 - [[#ticker][Ticker]]
 - [[#stopwatch][Stopwatch]]
 - [[#调整策略-2][调整策略]]
+- [[#神兽注释][神兽注释]]
 
 * Preconditions
   这个类存在第三方依赖， 但是都是 *注解类*, 对源码的阅读没有太多影响。
@@ -306,3 +307,5 @@
   2. 阅读笔记由偏向实时记录转为偏向总结
   3. 源码阅读过程中进行代码收集， 做优秀代码的搬运工 @_@
 
+* 神兽注释
+  + [[https://github.com/google/guava/blob/v25.0/guava/src/com/google/common/base/CharMatcher.java#L65][恐龙]]

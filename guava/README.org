@@ -8,8 +8,6 @@
   + 源码链接： [[https://github.com/google/guava/tree/v25.0/guava/src/com/google/common][guava 25.0]]
 
 * 目前进度
-  + [[file:annotations.org][annotations]]
-  + [[file:base.org][base]]
 
 * 相关链接
   + [[https://google.github.io/guava/releases/25.0-jre/api/docs/overview-summary.html][Guava: Google Core Libraries for Java 25.0-jre API]]
