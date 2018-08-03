@@ -8,10 +8,10 @@
   + 源码链接： [[https://github.com/pallets/flask/tree/1.0][Flask 1.0]]
 
 * 目前进度
-  + [[file:overview.org][Overview]] - /Flask 1.0/ 概览
-  + [[file:compat.org][compat]] - /py2/py3 compatibility support/
-  + [[file:globals.org][globals]] - /global objects/
-  + [[file:json.org][json]] - /json related/
-  + [[file:signals.org][signals]] - /signals related/
 
-  差不多两周的时间都是在看 ~flask~ 的源码， 我觉得我需要换个口味......
+* 相关链接
+  + [[https://github.com/pallets/werkzeug][Werkzeug - The comprehensive WSGI web application library]]
+  + [[https://github.com/pallets/jinja][Jinja2 - The Jinja2 template engine]]
+  + [[https://github.com/pallets/itsdangerous][itsdangerous - Various helpers to pass trusted data to untrusted environments]]
+  + [[https://github.com/pallets/click][click - Python composable command line utility]]
+

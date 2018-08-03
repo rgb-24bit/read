@@ -1,0 +1,5 @@
+#+TITLE:      summary
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+我感觉现在这个阅读源码的方式实在是有问题， 准备换个方式再来阅读。
