@@ -1,0 +1,89 @@
+#+TITLE:      shutil
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#简介][简介]]
+- [[#import][import]]
+- [[#function-copyfile][function copyfile]]
+- [[#function-copymode][function copymode]]
+- [[#function-copy][function copy]]
+- [[#相关链接][相关链接]]
+
+* 简介
+  *shutil* 是提供高层次文件操作接口的工具， 使用 *shutil* 来复制删除文件绝对比用 *os* 来舒服的多。
+
+* import
+  #+BEGIN_SRC python
+    try:
+        import zlib
+        del zlib
+        _ZLIB_SUPPORTED = True
+    except ImportError:
+        _ZLIB_SUPPORTED = False
+
+    try:
+        from grp import getgrnam
+    except ImportError:
+        getgrnam = None
+  #+END_SRC
+  
+  感觉挺巧妙的， 虽然原理很简单， 但是不一定想得到可以这样做。
+
+* function copyfile
+  #+BEGIN_SRC python
+    def copyfile(src, dst, *, follow_symlinks=True):
+
+        ...
+
+        if not follow_symlinks and os.path.islink(src):
+            os.symlink(os.readlink(src), dst)
+        else:
+            with open(src, 'rb') as fsrc:
+                with open(dst, 'wb') as fdst:
+                    copyfileobj(fsrc, fdst)
+        return dst
+  #+END_SRC
+
+  原来文件复制是这样实现的， *copefileobj* 将 *fsrc* 中的所有内容写入 *fdst* 中。
+
+  还以为有什么高级一点的接口， 没想到实际实现如此直接。
+
+* function copymode
+  #+BEGIN_SRC python
+    def copymode(src, dst, *, follow_symlinks=True):
+        if not follow_symlinks and os.path.islink(src) and os.path.islink(dst):
+            if hasattr(os, 'lchmod'):
+                stat_func, chmod_func = os.lstat, os.lchmod
+            else:
+                return
+        elif hasattr(os, 'chmod'):
+            stat_func, chmod_func = os.stat, os.chmod
+        else:
+            return
+
+        st = stat_func(src)
+        chmod_func(dst, stat.S_IMODE(st.st_mode))
+  #+END_SRC
+
+  *copymode* 的功能是将 *src* 的模式复制到 *dst* 上， 实现上最吸引我的是 *stat_func* 和 *chmod_func* 赋值这一段。
+
+  *stat_func* 和 *chmod_func* 的值都是函数， 虽然早就知道 *Python* 的这个特性， 但是很少这样用过。
+
+  这里使用这一特性在结合 *Python* 没有块作用域这一特点， 精简了不少代码。 看着很舒服。
+
+* function copy
+  #+BEGIN_SRC python
+    def copy(src, dst, *, follow_symlinks=True):
+        if os.path.isdir(dst):
+            dst = os.path.join(dst, os.path.basename(src))
+        copyfile(src, dst, follow_symlinks=follow_symlinks)
+        copymode(src, dst, follow_symlinks=follow_symlinks)
+        return dst
+  #+END_SRC
+  
+  这个函数的复制就比较完全了， 实现上感觉有趣的是参数 ***, 以及对 *dst* 的判断。
+
+* 相关链接
+  + [[https://github.com/python/cpython/blob/3.6/Lib/shutil.py][shutil 源码链接]]
+  + [[https://docs.python.org/3.6/library/shutil.html][shutil 文档链接]]
