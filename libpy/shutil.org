@@ -8,6 +8,7 @@
 - [[#function-copyfile][function copyfile]]
 - [[#function-copymode][function copymode]]
 - [[#function-copy][function copy]]
+- [[#function-copetree][function copetree]]
 - [[#相关链接][相关链接]]
 
 * 简介
@@ -83,6 +84,43 @@
   #+END_SRC
   
   这个函数的复制就比较完全了， 实现上感觉有趣的是参数 ***, 以及对 *dst* 的判断。
+
+* function copetree
+  #+BEGIN_SRC python
+    def copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2,
+                 ignore_dangling_symlinks=False):
+        names = os.listdir(src)
+
+        for name in names:
+            srcname = os.path.join(src, name)
+            dstname = os.path.join(dst, name)
+
+            if os.path.islink(srcname):
+                ...
+            elif os.path.isdir(srcname):
+                copytree(srcname, dstname, symlinks, ignore, copy_function)
+            else:
+                copy_function(srcname, dstname)
+  #+END_SRC
+
+  借鉴一下结构， 获取指定目录下所有符合规则的文件：
+  #+BEGIN_SRC python
+    def directory_files(src, match=None):
+        match = match or (lambda x: True)
+
+        names = os.listdir(src)
+
+        for name in names:
+            if not match(name):
+                continue
+
+            srcname = os.path.join(src, name)
+            if os.path.isdir(srcname):
+                for fn in directory_files(srcname, match):
+                    yield fn
+            else:
+                yield srcname
+  #+END_SRC
 
 * 相关链接
   + [[https://github.com/python/cpython/blob/3.6/Lib/shutil.py][shutil 源码链接]]
