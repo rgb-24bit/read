@@ -9,4 +9,5 @@
 
 * 目前进度
   + [[file:shutil.org][shutil - High-level file operations]]
+  + [[file:random.org][random — Generate pseudo-random numbers]]
 

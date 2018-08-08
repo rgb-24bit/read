@@ -1,0 +1,114 @@
+#+TITLE:      random
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#简介][简介]]
+- [[#常量][常量]]
+- [[#_randomrandom][_random.Random]]
+- [[#random][Random]]
+- [[#相关链接][相关链接]]
+
+* 简介
+  *Python* 的 *random* 模块对 *随机操作* 的支持应该是我见过的最丰富的一个模块了。
+
+  这里来了解一下部分操作是如何实现的。
+
+* 常量
+  #+BEGIN_SRC python
+    from math import log as _log, exp as _exp, pi as _pi, e as _e, ceil as _ceil
+    from math import sqrt as _sqrt, acos as _acos, cos as _cos, sin as _sin
+
+    NV_MAGICCONST = 4 * _exp(-0.5)/_sqrt(2.0)
+    TWOPI = 2.0*_pi
+    LOG4 = _log(4.0)
+    SG_MAGICCONST = 1.0 + _log(4.5)
+    BPF = 53        # Number of bits in a float
+    RECIP_BPF = 2**-BPF
+  #+END_SRC
+
+  这个看看就好， 反正也看不懂。
+
+* _random.Random
+  *Random* 类继承了 *_random.Random* 这个类，看了一下，感觉挺有趣的。
+
+  #+BEGIN_SRC python
+    >>> import _random
+    >>> help(_random)
+    Help on built-in module _random:
+
+    NAME
+        _random - Module implements the Mersenne Twister random number generator.
+
+    CLASSES
+        builtins.object
+            Random
+
+        class Random(builtins.object)
+         |  Random() -> create a random number generator with its own internal state.
+         |
+         |  Methods defined here:
+         |
+         |  __getattribute__(self, name, /)
+         |      Return getattr(self, name).
+         |
+         |  __new__(*args, **kwargs) from builtins.type
+         |      Create and return a new object.  See help(type) for accurate signature.
+         |
+         |  getrandbits(...)
+         |      getrandbits(k) -> x.  Generates an int with k random bits.
+         |
+         |  getstate(...)
+         |      getstate() -> tuple containing the current state.
+         |
+         |  random(...)
+         |      random() -> x in the interval [0, 1).
+         |
+         |  seed(...)
+         |      seed([n]) -> None.  Defaults to current time.
+         |
+         |  setstate(...)
+         |      setstate(state) -> None.  Restores generator state.
+
+    FILE
+        (built-in)
+  #+END_SRC
+
+  最有趣的方法应该是 *getrandbits* 了，获取指定 *位数* 的随机数，如果指定 *1* 位，那么生成的随机数就只有 *0* 或 *1*.
+
+  #+BEGIN_SRC python
+    >>> random.getrandbits(1)
+    0
+    >>> random.getrandbits(1)
+    0
+    >>> random.getrandbits(1)
+    0
+    >>> random.getrandbits(1)
+    1
+  #+END_SRC
+
+  实现感觉和 [[https://github.com/python/cpython/blob/3.6/Modules/_randommodule.c][_randommodule.c]] 有关， *getrandbits* 的部分代码：
+  #+BEGIN_SRC C
+    if (k <= 32)  /* Fast path */
+      return PyLong_FromUnsignedLong(genrand_int32(self) >> (32 - k));
+  #+END_SRC
+
+  简单来说，生成一个 *32* 位的随机数， 然后右移去除高位。
+
+* Random
+  这应该是我们使用 *random* 这个模块时用的最多的类了。
+
+  *random* 覆盖了父类的几个方法， 在 *seed* 中， 这行代码很强势：
+  #+BEGIN_SRC python
+    a = a.decode('latin-1') if isinstance(a, bytes) else a
+  #+END_SRC
+
+  *latin-1* 简直就是万用编码， 单字节真爽！
+
+  *Random* 对象还支持 *pickle*, 虽然感觉没啥用 QAQ
+
+
+* 相关链接
+  + [[https://github.com/python/cpython/blob/3.6/Modules/_randommodule.c][_randommodule.c]]
+  + [[https://github.com/python/cpython/blob/3.6/Lib/random.py][random 源码链接]]
+  + [[https://docs.python.org/3/library/random.html][random 文档链接]]
