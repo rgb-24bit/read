@@ -5,9 +5,9 @@
 * 简介
   通过阅读部分 ~Python~ 标准库的源码来学习 ~Python~ 的使用。
   
-  + 源码链接： [[https://github.com/python/cpython/tree/3.6][cpython 3.6]]
-
 * 目前进度
   + [[file:shutil.org][shutil - High-level file operations]]
   + [[file:random.org][random — Generate pseudo-random numbers]]
 
+* 相关链接
+  + [[https://github.com/python/cpython/tree/3.6][Python3.6 源码链接]]

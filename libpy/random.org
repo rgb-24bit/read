@@ -7,6 +7,8 @@
 - [[#常量][常量]]
 - [[#_randomrandom][_random.Random]]
 - [[#random][Random]]
+  - [[#randrange][randrange]]
+  - [[#choice][choice]]
 - [[#相关链接][相关链接]]
 
 * 简介
@@ -107,6 +109,95 @@
 
   *Random* 对象还支持 *pickle*, 虽然感觉没啥用 QAQ
 
+** randrange
+   #+BEGIN_SRC python
+     def randrange(self, start, stop=None, step=1, _int=int):
+             """Choose a random item from range(start, stop[, step]).
+             This fixes the problem with randint() which includes the
+             endpoint; in Python this is usually not what you want.
+             """
+
+             # This code is a bit messy to make it fast for the
+             # common case while still doing adequate error checking.
+             istart = _int(start)
+             if istart != start:
+                 raise ValueError("non-integer arg 1 for randrange()")
+             if stop is None:
+                 if istart > 0:
+                     return self._randbelow(istart)
+                 raise ValueError("empty range for randrange()")
+
+             # stop argument supplied.
+             istop = _int(stop)
+             if istop != stop:
+                 raise ValueError("non-integer stop for randrange()")
+             width = istop - istart
+             if step == 1 and width > 0:
+                 return istart + self._randbelow(width)
+             if step == 1:
+                 raise ValueError("empty range for randrange() (%d,%d, %d)" % (istart, istop, width))
+
+             # Non-unit step argument supplied.
+             istep = _int(step)
+             if istep != step:
+                 raise ValueError("non-integer step for randrange()")
+             if istep > 0:
+                 n = (width + istep - 1) // istep
+             elif istep < 0:
+                 n = (width + istep + 1) // istep
+             else:
+                 raise ValueError("zero step for randrange()")
+
+             if n <= 0:
+                 raise ValueError("empty range for randrange()")
+
+             return istart + istep*self._randbelow(n)
+   #+END_SRC
+
+   这个方法的实现依赖于 *_randbelow* 方法， *_randbelow* 方法生成 *[0, n)* 的整数随机数， 而 *randrange* 控制生成
+   的随机数范围后生成后的随机数的处理。
+
+   #+BEGIN_SRC python
+     def _randbelow(self, n, int=int, maxsize=1<<BPF, type=type,
+                        Method=_MethodType, BuiltinMethod=_BuiltinMethodType):
+             "Return a random int in the range [0,n).  Raises ValueError if n==0."
+
+             random = self.random
+             getrandbits = self.getrandbits
+             # Only call self.getrandbits if the original random() builtin method
+             # has not been overridden or if a new getrandbits() was supplied.
+             if type(random) is BuiltinMethod or type(getrandbits) is Method:
+                 k = n.bit_length()  # don't use (n-1) here because n can be 1
+                 r = getrandbits(k)          # 0 <= r < 2**k
+                 while r >= n:
+                     r = getrandbits(k)
+                 return r
+             ...
+   #+END_SRC
+
+   对于目前的 *Python*, *_randbelow* 会执行的部分大概就是这些， 生成随机数的核心部分为：
+   #+BEGIN_SRC python
+     k = n.bit_length()  # don't use (n-1) here because n can be 1
+     r = getrandbits(k)          # 0 <= r < 2**k
+     while r >= n:
+         r = getrandbits(k)
+     return r
+   #+END_SRC
+
+   通过 *getrandbits* 来控制生成的随机数的大小。
+
+** choice
+   #+BEGIN_SRC python
+     def choice(self, seq):
+         """Choose a random element from a non-empty sequence."""
+         try:
+             i = self._randbelow(len(seq))
+         except ValueError:
+             raise IndexError('Cannot choose from an empty sequence') from None
+         return seq[i]
+   #+END_SRC
+
+   有了前面的内容的话， *choice* 的实现还是挺简单的.....
 
 * 相关链接
   + [[https://github.com/python/cpython/blob/3.6/Modules/_randommodule.c][_randommodule.c]]
