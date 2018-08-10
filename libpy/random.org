@@ -9,6 +9,9 @@
 - [[#random][Random]]
   - [[#randrange][randrange]]
   - [[#choice][choice]]
+  - [[#shuffle][shuffle]]
+  - [[#sample][sample]]
+  - [[#choices][choices]]
 - [[#相关链接][相关链接]]
 
 * 简介
@@ -198,6 +201,107 @@
    #+END_SRC
 
    有了前面的内容的话， *choice* 的实现还是挺简单的.....
+
+** shuffle   
+   #+BEGIN_SRC python
+     def shuffle(self, x, random=None):
+         if random is None:
+             randbelow = self._randbelow
+             for i in reversed(range(1, len(x))):
+                 # pick an element in x[:i+1] with which to exchange x[i]
+                 j = randbelow(i+1)
+                 x[i], x[j] = x[j], x[i]
+         else:
+             _int = int
+             for i in reversed(range(1, len(x))):
+                 # pick an element in x[:i+1] with which to exchange x[i]
+                 j = _int(random() * (i+1))
+                 x[i], x[j] = x[j], x[i]
+   #+END_SRC
+
+   通过源码可以发现， *shuffle* 这个方法的默认行为对 *小序列* 的效果不是很好。
+
+** sample  
+   #+BEGIN_SRC python
+     def sample(self, population, k):
+         if isinstance(population, _Set):
+             population = tuple(population)
+         if not isinstance(population, _Sequence):
+             raise TypeError("Population must be a sequence or set.  For dicts, use list(d).")
+         randbelow = self._randbelow
+         n = len(population)
+         if not 0 <= k <= n:
+             raise ValueError("Sample larger than population or is negative")
+         result = [None] * k
+         setsize = 21        # size of a small set minus size of an empty list
+         if k > 5:
+             setsize += 4 ** _ceil(_log(k * 3, 4)) # table size for big sets
+         if n <= setsize:
+             # An n-length list is smaller than a k-length set
+             pool = list(population)
+             for i in range(k):         # invariant:  non-selected at [0,n-i)
+                 j = randbelow(n-i)
+                 result[i] = pool[j]
+                 pool[j] = pool[n-i-1]   # move non-selected item into vacancy
+         else:
+             selected = set()
+             selected_add = selected.add
+             for i in range(k):
+                 j = randbelow(n)
+                 while j in selected:
+                     j = randbelow(n)
+                 selected_add(j)
+                 result[i] = population[j]
+         return result
+   #+END_SRC
+
+   这个函数的代码需要理解一下：
+   1. 前期处理确定参数有效合法
+   2. 当序列大小大于 *setsize* 时， 说明连续遇到相同的随机数的概率小， 采用不断
+      循环得到不重复的元素的方法获取样本集合
+   3. 当序列大小小于 *setsize* 时， 很有可能遇到相同的随机数， 所以使用简单的方式
+      获取样本集合
+   4. 对于小集合，这段代码保证已获取的元素不会重复获取， 同时未获取元素总是有可能被获取到
+      #+BEGIN_SRC python
+        for i in range(k):         # invariant:  non-selected at [0,n-i)
+            j = randbelow(n-i)
+            result[i] = pool[j]
+            pool[j] = pool[n-i-1]   # move non-selected item into vacancy
+      #+END_SRC
+
+      *pool[j] = pool[n-i-1]* 使用未选择到的成员覆盖已选择的成员，当 *i* 增大时， *最后* 的元素
+      将不会被选择到。
+
+   好奇大小集合的判断依据是什么。
+
+** choices
+   #+BEGIN_SRC python
+     def choices(self, population, weights=None, *, cum_weights=None, k=1):
+         random = self.random
+         if cum_weights is None:
+             if weights is None:
+                 _int = int
+                 total = len(population)
+                 return [population[_int(random() * total)] for i in range(k)]
+             cum_weights = list(_itertools.accumulate(weights))
+         elif weights is not None:
+             raise TypeError('Cannot specify both weights and cumulative weights')
+         if len(cum_weights) != len(population):
+             raise ValueError('The number of weights does not match the population')
+         bisect = _bisect.bisect
+         total = cum_weights[-1]
+         hi = len(cum_weights) - 1
+         return [population[bisect(cum_weights, random() * total, 0, hi)]
+                 for i in range(k)]
+   #+END_SRC
+
+   这个也需要理一下：
+   1. 如果只指定了参数 *k*, 那么直接从 *population* 中选择 *k* 个元素返回
+   2. 如果指定 *weights* 而没有指定 *cum_weights*, 那么 *cum_weights* 等于 *weights* 经过
+      [[https://docs.python.org/3/library/itertools.html#itertools.accumulate][itertools.accumulate]] 处理后的结果
+   3. 最后通过 [[https://docs.python.org/3.6/library/bisect.html][bisect]] 和 *cum_weights* 来选择元素
+
+   感觉模块 *bisect* 挺有趣的。
 
 * 相关链接
   + [[https://github.com/python/cpython/blob/3.6/Modules/_randommodule.c][_randommodule.c]]
