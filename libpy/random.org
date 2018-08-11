@@ -12,6 +12,8 @@
   - [[#shuffle][shuffle]]
   - [[#sample][sample]]
   - [[#choices][choices]]
+  - [[#other][other]]
+- [[#systemrandom][SystemRandom]]
 - [[#相关链接][相关链接]]
 
 * 简介
@@ -302,6 +304,16 @@
    3. 最后通过 [[https://docs.python.org/3.6/library/bisect.html][bisect]] 和 *cum_weights* 来选择元素
 
    感觉模块 *bisect* 挺有趣的。
+
+** other
+   剩下几个方法： 均匀分布、三角分布、正太分布、对数正态分布、指数分布......
+
+   emmm, 溜了溜了
+
+* SystemRandom
+  操作系统随机源， 继承了前面的 *Random* 类， 并覆盖了一些方法。
+  
+  一般使用的话， *Random* 就足够了。
 
 * 相关链接
   + [[https://github.com/python/cpython/blob/3.6/Modules/_randommodule.c][_randommodule.c]]
