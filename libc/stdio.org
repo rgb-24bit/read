@@ -1,0 +1,65 @@
+#+TITLE:      stdio
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#简介][简介]]
+- [[#一段有趣的代码][一段有趣的代码]]
+- [[#流和文件][流和文件]]
+- [[#对文件的操作][对文件的操作]]
+
+* 简介
+  标准输入输出 ~stdio~, 这应该是我编程生涯中用到的第一个库， ~Hello World~ 就是在它的
+  帮助下输出到屏幕的。
+
+  现在，可以来看一看 ~stdio~ 的源码了，了解了解 *文件描述符*.
+
+* 一段有趣的代码
+  #+BEGIN_SRC C
+    /* Standard streams.  */
+    extern FILE *stdin;             /* Standard input stream.  */
+    extern FILE *stdout;            /* Standard output stream.  */
+    extern FILE *stderr;            /* Standard error output stream.  */
+    /* C89/C99 say they're macros.  Make them happy.  */
+    #define stdin stdin
+    #define stdout stdout
+    #define stderr stderr
+  #+END_SRC
+
+  中间那个注释是真的骚，还有人在 ~stackoverflow~ 上提问了 @_@
+
+  + [[https://stackoverflow.com/questions/47377745/c89-c99-say-theyre-macros-make-them-happy][“C89/C99 say they're macros. Make them happy.”?]]
+ 
+* 流和文件
+  C 语言支持两种形式的流： *文本流* 和 *二进制流*. 其他语言也差不多。
+
+  每个进程预定义打开的三个文件描述符为： stdin - 标准输入、 stdout - 标准输出、 stderr - 标准错误。
+
+  *缓冲的类型*:
+  + *无缓冲* - 输入输出都是立即执行 - ~_IONBF~
+  + *完全缓冲* - 当缓冲区被填满时字符作为块被移出 - ~_IOFBF~
+  + *行缓冲* - 当遇到换行符时字符作为块被移出 - ~_IOLBF~
+
+* 对文件的操作
+  对于 ~remove~ 和 ~rename~, 实现主要是通过 *系统调用*.
+
+  ~remove~ 直接删除文件，而 ~rename~ 复制源文件，然后在删除旧文件。
+
+  似乎，不存在直接的重命名操作。
+
+  可以看一下 ~tmpnam~ 生成临时文件名的方式：
+  #+BEGIN_SRC C
+    char* tmpnam(char* s) {
+      p = s + strlen(s) + i;
+      for (t = seed; 0 <= --i; t >> 3) {
+        *--p = '0' + (t & 07);
+      }
+      return s;
+    }
+  #+END_SRC
+  
+  省略了一些无关的代码， ~seed~ 是一个不会产生重复的值。
+
+  如果用 *时间* 作为 ~seed~ 的值怎么样 ？
+  
+  
