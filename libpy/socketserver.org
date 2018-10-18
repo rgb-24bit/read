@@ -1,0 +1,39 @@
+#+TITLE:      socketserver
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#dependence][dependence]]
+- [[#相关链接][相关链接]]
+
+* dependence
+  #+BEGIN_SRC python
+    import socket
+    import selectors
+    import os
+    import sys
+    import threading
+    from io import BufferedIOBase
+    from time import monotonic as time
+  #+END_SRC
+
+  ~socketserver~ 大部分依赖还是比较熟悉的，较为陌生的是： ~selectors~ 和 ~monotonic~.
+
+  + ~selectors~ - 高级 ~I/O~ 多路复用
+  + ~monotonic~ - 单调时钟
+
+  用到的 ~selectors~ 中的对象的两个方法：
+  + ~register(fileobj, events, data=None)~ - 注册文件对象并监听 ~events~ 指定的 ~I/O~ 事件
+
+    文件对象只需要实现 ~fileno~ 方法
+
+  + ~select(timeout=None)~ - 阻塞直到注册的文件对象准备就绪或超时到期
+
+  对于 ~monotonic~ - 单调时钟，这个概念是第一次接触，它表示自过去某些任意的不动点以来绝对经过的挂钟时间。
+  不受系统日间时钟变化的影响。
+
+  感觉是个好东西。
+
+* 相关链接
+  + [[https://github.com/python/cpython/blob/master/Lib/socketserver.py][socketserver.py]]
+  + [[https://docs.python.org/3/library/socketserver.html][socketserver — A framework for network servers]]
