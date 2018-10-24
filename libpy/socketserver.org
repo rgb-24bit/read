@@ -4,6 +4,7 @@
 
 * Table of Contents                                       :TOC_4_gh:noexport:
 - [[#dependence][dependence]]
+- [[#class-baseserver][class BaseServer]]
 - [[#相关链接][相关链接]]
 
 * dependence
@@ -33,6 +34,234 @@
   不受系统日间时钟变化的影响。
 
   感觉是个好东西。
+
+* class BaseServer
+  为调用者提供的方法：
+  #+BEGIN_EXAMPLE
+    - __init__(server_address, RequestHandlerClass)
+    - serve_forever(poll_interval=0.5)
+    - shutdown()
+    - handle_request()  # if you do not use serve_forever()
+    - fileno() -> int   # for selector
+  #+END_EXAMPLE
+
+  可以覆盖的方法：
+  #+BEGIN_EXAMPLE
+    - server_bind()
+    - server_activate()
+    - get_request() -> request, client_address
+    - handle_timeout()
+    - verify_request(request, client_address)
+    - server_close()
+    - process_request(request, client_address)
+    - shutdown_request(request)
+    - close_request(request)
+    - service_actions()
+    - handle_error()
+  #+END_EXAMPLE
+
+  派生类的方法：
+  #+BEGIN_EXAMPLE
+    - finish_request(request, client_address)
+  #+END_EXAMPLE
+
+  可以被派生类或实例重写的类变量：
+  #+BEGIN_EXAMPLE
+    - timeout
+    - address_family
+    - socket_type
+    - allow_reuse_address
+  #+END_EXAMPLE
+
+  实例变量：
+  #+BEGIN_EXAMPLE
+    - RequestHandlerClass
+    - socket
+  #+END_EXAMPLE
+  
+  这个基类的设计真漂亮！
+
+  构造函数：
+  #+BEGIN_SRC python
+    def __init__(self, server_address, RequestHandlerClass):
+        """Constructor.  May be extended, do not override."""
+        self.server_address = server_address
+        self.RequestHandlerClass = RequestHandlerClass
+        self.__is_shut_down = threading.Event()
+        self.__shutdown_request = False
+  #+END_SRC
+
+  构造函数中的 ~__is_shutdown~ 是没有接触过的一个东西： ~threading.Event()~.
+
+  ~Event~ 对象管理一个内部标示符，这个标示符可以通过 ~set()~ 方法设为 ~True~, 通过 ~clear()~ 方法重新设为 ~False~,
+  ~wait()~ 方法则使线程一直处于阻塞状态，直到标示符变为 ~True~.
+
+  方法 ~serve_forever~:
+  #+BEGIN_SRC python
+    def serve_forever(self, poll_interval=0.5):
+        """Handle one request at a time until shutdown.
+        Polls for shutdown every poll_interval seconds. Ignores
+        self.timeout. If you need to do periodic tasks, do them in
+        another thread.
+        """
+        self.__is_shut_down.clear()
+        try:
+            # XXX: Consider using another file descriptor or connecting to the
+            # socket to wake this up instead of polling. Polling reduces our
+            # responsiveness to a shutdown request and wastes cpu at all other
+            # times.
+            with _ServerSelector() as selector:
+                selector.register(self, selectors.EVENT_READ)
+
+                while not self.__shutdown_request:
+                    ready = selector.select(poll_interval)
+                    if ready:
+                        self._handle_request_noblock()
+
+                    self.service_actions()
+        finally:
+            self.__shutdown_request = False
+            self.__is_shut_down.set()
+  #+END_SRC
+  
+  读懂 ~selector.register(self, selectors.EVENT_READ)~ 这一行需要了解的相关的源码：
+  #+BEGIN_SRC python
+    def _fileobj_to_fd(fileobj):
+        if isinstance(fileobj, int):
+            fd = fileobj
+        else:
+            try:
+                fd = int(fileobj.fileno())
+            except (AttributeError, TypeError, ValueError):
+                raise ValueError("Invalid file object: "
+                                 "{!r}".format(fileobj)) from None
+        if fd < 0:
+            raise ValueError("Invalid file descriptor: {}".format(fd))
+        return fd
+
+
+    def fileno(self):
+        return self.socket.fileno()
+  #+END_SRC
+
+  启动服务后，监听 ~socket~ 描述符的 ~EVENT_READ~ 事件，监听到后调用 ~self._handle_request_noblock()~ 处理请求。
+
+  该事件表示 ~socket~ 描述符准备好被读了。
+
+  每次循环还会调用 ~self.service_actions()~ 方法，具体行为由子类定义。
+
+  方法 ~shutdown~:
+  #+BEGIN_SRC python
+    def shutdown(self):
+        """Stops the serve_forever loop.
+        Blocks until the loop has finished. This must be called while
+        serve_forever() is running in another thread, or it will
+        deadlock.
+        """
+        self.__shutdown_request = True
+        self.__is_shut_down.wait()
+  #+END_SRC
+  
+  这个方法应该不是手动调用的，笔记调用 ~serve_forever~ 后就阻塞了。
+
+  ~__is_shutdown_request~ 用于阻断 ~serve_forever~ 循环，而 ~__is_shut_down~ 可以等待 ~serve_forever~ 循环的完成。
+
+  处理单个请求 ~handle_request~:
+  #+BEGIN_SRC python
+    def handle_request(self):
+        """Handle one request, possibly blocking.
+        Respects self.timeout.
+        """
+        # Support people who used socket.settimeout() to escape
+        # handle_request before self.timeout was available.
+        timeout = self.socket.gettimeout()
+        if timeout is None:
+            timeout = self.timeout
+        elif self.timeout is not None:
+            timeout = min(timeout, self.timeout)
+        if timeout is not None:
+            deadline = time() + timeout
+
+        # Wait until a request arrives or the timeout expires - the loop is
+        # necessary to accommodate early wakeups due to EINTR.
+        with _ServerSelector() as selector:
+            selector.register(self, selectors.EVENT_READ)
+
+            while True:
+                ready = selector.select(timeout)
+                if ready:
+                    return self._handle_request_noblock()
+                else:
+                    if timeout is not None:
+                        timeout = deadline - time()
+                        if timeout < 0:
+                            return self.handle_timeout()
+  #+END_SRC
+
+  和 ~serve_forever~ 类似，但只处理单个请求就退出，超时也 ~GG~.
+
+  真·处理请求：
+  #+BEGIN_SRC python
+    def _handle_request_noblock(self):
+        """Handle one request, without blocking.
+        I assume that selector.select() has returned that the socket is
+        readable before this function was called, so there should be no risk of
+        blocking in get_request().
+        """
+        try:
+            request, client_address = self.get_request()
+        except OSError:
+            return
+        if self.verify_request(request, client_address):
+            try:
+                self.process_request(request, client_address)
+            except Exception:
+                self.handle_error(request, client_address)
+                self.shutdown_request(request)
+            except:
+                self.shutdown_request(request)
+                raise
+        else:
+            self.shutdown_request(request)
+  #+END_SRC
+
+  针对请求处理的函数一堆，大致调用流程需要理一下：
+  1. 获取请求 - 由派生类实现
+  2. 验证请求 - 默认为 ~True~
+  3. 验证成功就处理请求 - ~process_request~
+  4. 验证失败就干掉请求 - ~shutdown_request~
+  5. 处理请求的默认流程为：
+     + 通过 ~finish_request~ 完成对请求的处理
+       #+BEGIN_SRC python
+         def finish_request(self, request, client_address):
+             """Finish one request by instantiating RequestHandlerClass."""
+             self.RequestHandlerClass(request, client_address, self)
+       #+END_SRC
+     + 通过 ~shutdown_request~ 干掉请求
+       #+BEGIN_SRC python
+         def shutdown_request(self, request):
+             """Called to shutdown and close an individual request."""
+             self.close_request(request)
+
+         def close_request(self, request):
+             """Called to clean up an individual request."""
+             pass
+       #+END_SRC
+  6. 处理请求出现异常时：
+     #+BEGIN_SRC python
+       try:
+           self.process_request(request, client_address)
+       except Exception:
+           self.handle_error(request, client_address)
+           self.shutdown_request(request)
+       except:
+           self.shutdown_request(request)
+           raise
+     #+END_SRC
+     
+  为子类的扩展留出了充分的空间。
+
+  nice !
 
 * 相关链接
   + [[https://github.com/python/cpython/blob/master/Lib/socketserver.py][socketserver.py]]
