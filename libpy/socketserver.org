@@ -5,6 +5,13 @@
 * Table of Contents                                       :TOC_4_gh:noexport:
 - [[#dependence][dependence]]
 - [[#class-baseserver][class BaseServer]]
+- [[#class-tcpserver][class TCPServer]]
+- [[#class-udpserver][class UDPServer]]
+- [[#class-threadingmixin][class ThreadingMixIn]]
+- [[#class-baserequesthandler][class BaseRequestHandler]]
+- [[#class-streamrequesthandler][class StreamRequestHandler]]
+- [[#class-datagramrequesthandler][class DatagramRequestHandler]]
+- [[#class-textrequesthandler][class TextRequestHandler]]
 - [[#相关链接][相关链接]]
 
 * dependence
@@ -262,6 +269,247 @@
   为子类的扩展留出了充分的空间。
 
   nice !
+
+* class TCPServer
+  看过了 ~BaseServer~ 部分的源码， ~TCPServer~ 部分的源码阅读起来就轻松多了。
+
+  需要注意的部分源码：
+  #+BEGIN_SRC python
+    request, client_address = self.get_request()
+
+    def get_request(self):
+        """Get the request and client address from the socket.
+        May be overridden.
+        """
+        return self.socket.accept()
+  #+END_SRC
+
+  ~socket.accept~ 返回的是一个套接字对象和一个包含客户端地址的元组，接受的 ~request~ 是套接字对象。
+
+  在 ~shutdown~ 中，使用了套接字对象的一个方法：
+  #+BEGIN_SRC python
+    request.shutdown(socket.SHUT_WR)
+  #+END_SRC
+
+  通过 ~shutdown~ 可以明确关闭 ~socket~ 连接，因为 ~socket.close~ 会等待 ~GC~ 的完成。
+
+* class UDPServer
+  ~UDPServer~ 就更简单了，连 ~close_request~ 都不需要实现， ~get_request~ 是这样的：
+  #+BEGIN_SRC python
+    def get_request(self):
+        data, client_addr = self.socket.recvfrom(self.max_packet_size)
+        return (data, self.socket), client_addr
+  #+END_SRC
+
+  绝对是这几个里面最简单的。
+
+* class ThreadingMixIn
+  #+BEGIN_SRC python
+    class ThreadingMixIn:
+        """Mix-in class to handle each request in a new thread."""
+
+        # Decides how threads will act upon termination of the
+        # main process
+        daemon_threads = False
+        # If true, server_close() waits until all non-daemonic threads terminate.
+        block_on_close = True
+        # For non-daemonic threads, list of threading.Threading objects
+        # used by server_close() to wait for all threads completion.
+        _threads = None
+
+        def process_request_thread(self, request, client_address):
+            """Same as in BaseServer but as a thread.
+            In addition, exception handling is done here.
+            """
+            try:
+                self.finish_request(request, client_address)
+            except Exception:
+                self.handle_error(request, client_address)
+            finally:
+                self.shutdown_request(request)
+
+        def process_request(self, request, client_address):
+            """Start a new thread to process the request."""
+            t = threading.Thread(target = self.process_request_thread,
+                                 args = (request, client_address))
+            t.daemon = self.daemon_threads
+            if not t.daemon and self.block_on_close:
+                if self._threads is None:
+                    self._threads = []
+                self._threads.append(t)
+            t.start()
+
+        def server_close(self):
+            super().server_close()
+            if self.block_on_close:
+                threads = self._threads
+                self._threads = None
+                if threads:
+                    for thread in threads:
+                        thread.join()
+  #+END_SRC
+
+  这里需要结合 ~BaseServer~ 的部分源码阅读：
+  #+BEGIN_SRC python
+    class BaseServer:
+        def _handle_request_noblock(self):
+            """Handle one request, without blocking.
+            I assume that selector.select() has returned that the socket is
+            readable before this function was called, so there should be no risk of
+            blocking in get_request().
+            """
+            try:
+                request, client_address = self.get_request()
+            except OSError:
+                return
+            if self.verify_request(request, client_address):
+                try:
+                    self.process_request(request, client_address)
+                except Exception:
+                    self.handle_error(request, client_address)
+                    self.shutdown_request(request)
+                except:
+                    self.shutdown_request(request)
+                    raise
+            else:
+                self.shutdown_request(request)
+
+        def process_request(self, request, client_address):
+            """Call finish_request.
+            Overridden by ForkingMixIn and ThreadingMixIn.
+            """
+            self.finish_request(request, client_address)
+            self.shutdown_request(request)
+  #+END_SRC
+
+  在进行 ~process_request~ 的过程中，因为要新建一个线程，所以 ~_handle_request_noblock~ 中的异常处理无法生效。
+
+  所以在 ~ThreadingMixIn~ 中，将异常处理的相关代码放到了线程中，也就是 ~process_request_thread~ 中。
+
+  除此之外，都比较简单，比较有趣的的是 ~daemon_threads~ 和 ~block_on_close~ 两个变量的处理方式。
+
+  挺有启发性的。
+
+* class BaseRequestHandler
+  #+BEGIN_SRC python
+    class BaseRequestHandler:
+        def __init__(self, request, client_address, server):
+            self.request = request
+            self.client_address = client_address
+            self.server = server
+            self.setup()
+            try:
+                self.handle()
+            finally:
+                self.finish()
+  #+END_SRC
+
+  ~BaseRequestHandler~ 的源码比想象的简单的多，处理保存了必要的属性以外，就是直接在 ~__init__~ 中调用 ~handle~ 了。
+
+  这一点是比较意外的一点，没看源码前一直觉得是在 ~process_request~ 之类的方法类手动调用，结果是实例化时直接调用。
+
+  这样一来，子类的看点就集中在方法 ~handle~ 和 ~finish~ 上了。
+
+* class StreamRequestHandler
+  #+BEGIN_SRC python
+    class StreamRequestHandler(BaseRequestHandler):
+        wbufsize = 0
+        timeout = None
+        disable_nagle_algorithm = False
+
+        def setup(self):
+            self.connection = self.request
+            if self.timeout is not None:
+                self.connection.settimeout(self.timeout)
+            if self.disable_nagle_algorithm:
+                self.connection.setsockopt(socket.IPPROTO_TCP,
+                                           socket.TCP_NODELAY, True)
+            self.rfile = self.connection.makefile('rb', self.rbufsize)
+            if self.wbufsize == 0:
+                self.wfile = _SocketWriter(self.connection)
+            else:
+                self.wfile = self.connection.makefile('wb', self.wbufsize)
+
+        def finish(self):
+            if not self.wfile.closed:
+                try:
+                    self.wfile.flush()
+                except socket.error:
+                    # A final socket error may have occurred here, such as
+                    # the local error ECONNABORTED.
+                    pass
+            self.wfile.close()
+            self.rfile.close()
+
+    class _SocketWriter(BufferedIOBase):
+        def __init__(self, sock):
+            self._sock = sock
+
+        def writable(self):
+            return True
+
+        def write(self, b):
+            self._sock.sendall(b)
+            with memoryview(b) as view:
+                return view.nbytes
+
+        def fileno(self):
+            return self._sock.fileno()
+  #+END_SRC
+
+  创建 ~wfile~ 和 ~rfile~ 可以让读写操作更方便，更多的，就不是很清楚了......
+
+* class DatagramRequestHandler
+  这个挺简单的：
+  #+BEGIN_SRC python
+    class DatagramRequestHandler(BaseRequestHandler):
+
+        """Define self.rfile and self.wfile for datagram sockets."""
+
+        def setup(self):
+            from io import BytesIO
+            self.packet, self.socket = self.request
+            self.rfile = BytesIO(self.packet)
+            self.wfile = BytesIO()
+
+        def finish(self):
+            self.socket.sendto(self.wfile.getvalue(), self.client_address)
+  #+END_SRC
+
+  也就是说，用 ~StreamRequestHandler~ 和 ~DatagramRequestHandler~ 的时候，读写操作最好通过 ~wfile~ 和 ~rfile~ 完成，
+  其他的事情就不需要我们管了。
+
+* class TextRequestHandler
+  emmm, 自己写的，尝试一下：
+  #+BEGIN_SRC python
+    class TextRequest(BaseRequestHandler):
+        timeout = None
+        disable_nagle_algorithm = False
+        encoding = 'utf-8'
+
+        def setup(self):
+            self.connection = self.request
+            if self.timeout is not None:
+                self.connection.settimeout(self.timeout)
+            if self.disable_nagle_algorithm:
+                self.connection.setsockopt(socket.IPPROTO_TCP,
+                                               socket.TCP_NODELAY, True)
+            self.rfile = self.connection.makefile('r', self.rbufsize, encoding=self.encoding)
+            self.wfile = self.connection.makefile('w', self.wbufsize, encoding=self.encoding)
+
+        def finish(self):
+            if not self.wfile.closed:
+                try:
+                    self.wfile.flush()
+                except socket.error:
+                    # A final socket error may have occurred here, such as
+                    # the local error ECONNABORTED.
+                    pass
+            self.wfile.close()
+            self.rfile.close()
+  #+END_SRC
+
+  好水 @_@
 
 * 相关链接
   + [[https://github.com/python/cpython/blob/master/Lib/socketserver.py][socketserver.py]]
