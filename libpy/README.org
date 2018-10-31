@@ -8,9 +8,12 @@
 * 目前进度
   + [[file:shutil.org][shutil - High-level file operations]]
   + [[file:random.org][random — Generate pseudo-random numbers]]
-  + [[file:io.org][io — Core tools for working with streams]]
   + [[file:threading.org][threading - Thread-based parallelism]]
   + [[file:socketserver.org][socketserver — A framework for network servers]]
+
+* 暂时放弃
+  + [[https://docs.python.org/3/library/io.html][io — Core tools for working with streams]]
+  + [[https://docs.python.org/3/library/http.server.html][http.server — HTTP servers]]
 
 * 相关链接
   + [[https://github.com/python/cpython/tree/3.6][Python3.6 源码链接]]
