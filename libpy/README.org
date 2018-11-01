@@ -10,6 +10,7 @@
   + [[file:random.org][random — Generate pseudo-random numbers]]
   + [[file:threading.org][threading - Thread-based parallelism]]
   + [[file:socketserver.org][socketserver — A framework for network servers]]
+  + [[file:collections.org][collections — Container datatypes]]
 
 * 暂时放弃
   + [[https://docs.python.org/3/library/io.html][io — Core tools for working with streams]]
