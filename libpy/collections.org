@@ -5,6 +5,8 @@
 * Table of Contents                                       :TOC_4_gh:noexport:
 - [[#import][import]]
 - [[#userdict][UserDict]]
+- [[#userlist][UserList]]
+- [[#userstring][UserString]]
 - [[#相关链接][相关链接]]
 
 * import
@@ -97,6 +99,48 @@
   #+END_SRC
 
   好吧，官方文档还真有提示： [[https://docs.python.org/3/library/collections.html#collections.UserDict][class collections.UserDict({initialdata})]]
+
+* UserList
+  UserList 和 UserDict 的实现方式差不多，比较有趣的是几个方法的实现，反正看到源码后瞬间幻灭了：
+  #+BEGIN_SRC python
+    def append(self, value):
+        'S.append(value) -- append value to the end of the sequence'
+        self.insert(len(self), value)
+
+    def clear(self):
+        'S.clear() -> None -- remove all items from S'
+        try:
+            while True:
+                self.pop()
+        except IndexError:
+            pass
+
+    def extend(self, values):
+        'S.extend(iterable) -- extend sequence by appending elements from the iterable'
+        if values is self:
+            values = list(values)
+        for v in values:
+            self.append(v)
+  #+END_SRC
+
+  这几个是 ~MutableSequence~ 中的实现，UserList 中这几个方法都用 data 字段的方法实现。
+
+  不过这个实现还是可以看一下，这种用法可以：
+  #+BEGIN_SRC python
+    def count(self, value):
+        'S.count(value) -> integer -- return number of occurrences of value'
+        return sum(1 for v in self if v is value or v == value)
+  #+END_SRC
+
+  值得一提的是，UserList 内部所有方法的实现都是调用 data 字段的方法，为什么，UserDict 会有那么两个方法不是这样的呢？
+
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L1066][class UserList(_collections_abc.MutableSequence)]]
+
+* UserString
+  UserString 就没什么好说的了，源码简单而又直白：
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L1139][class UserString(_collections_abc.Sequence)]]
+
+  所以说，为什么，唯独 UserDict 存在两个方法不是通过调用 data 字段的方法实现呢？
 
 * 相关链接
   + [[https://docs.python.org/3/library/collections.html][collections — Container datatypes]]
