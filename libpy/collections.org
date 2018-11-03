@@ -7,6 +7,8 @@
 - [[#userdict][UserDict]]
 - [[#userlist][UserList]]
 - [[#userstring][UserString]]
+- [[#module__getattr__][module.__getattr__]]
+- [[#ordereddict][OrderedDict]]
 - [[#相关链接][相关链接]]
 
 * import
@@ -100,6 +102,15 @@
 
   好吧，官方文档还真有提示： [[https://docs.python.org/3/library/collections.html#collections.UserDict][class collections.UserDict({initialdata})]]
 
+  似乎，还有其他的选择：
+  #+BEGIN_SRC python
+    class NestedDict(UserDict):
+        def __missing__(self, key):
+            value = self.__class__()
+            self.data[key] = value
+            return value
+  #+END_SRC
+
 * UserList
   UserList 和 UserDict 的实现方式差不多，比较有趣的是几个方法的实现，反正看到源码后瞬间幻灭了：
   #+BEGIN_SRC python
@@ -141,6 +152,86 @@
   + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L1139][class UserString(_collections_abc.Sequence)]]
 
   所以说，为什么，唯独 UserDict 存在两个方法不是通过调用 data 字段的方法实现呢？
+
+* module.__getattr__
+  突然发现，最上面的 ~__getattr__~ 是给模块定义的：
+  #+BEGIN_SRC python
+    def __getattr__(name):
+        # For backwards compatibility, continue to make the collections ABCs
+        # through Python 3.6 available through the collections module.
+        # Note, no new collections ABCs were added in Python 3.7
+        if name in _collections_abc.__all__:
+            obj = getattr(_collections_abc, name)
+            import warnings
+            warnings.warn("Using or importing the ABCs from 'collections' instead "
+                          "of from 'collections.abc' is deprecated, "
+                          "and in 3.8 it will stop working",
+                          DeprecationWarning, stacklevel=2)
+            globals()[name] = obj
+            return obj
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+  #+END_SRC
+
+  原来还有这种操作 @_@
+
+* OrderedDict
+  通过 OrderedDict 的源码，我知道了一直好奇的 ~View~ 的实现方式，真的厉害：
+  #+BEGIN_SRC python
+    class MappingView(Sized):
+
+        __slots__ = '_mapping',
+
+        def __init__(self, mapping):
+            self._mapping = mapping
+
+        def __len__(self):
+            return len(self._mapping)
+
+        def __repr__(self):
+            return '{0.__class__.__name__}({0._mapping!r})'.format(self)
+
+    class KeysView(MappingView, Set):
+
+        __slots__ = ()
+
+        @classmethod
+        def _from_iterable(self, it):
+            return set(it)
+
+        def __contains__(self, key):
+            return key in self._mapping
+
+        def __iter__(self):
+            yield from self._mapping
+
+    class _OrderedDictKeysView(_collections_abc.KeysView):
+
+        def __reversed__(self):
+            yield from reversed(self._mapping)
+
+    def keys(self):
+        "D.keys() -> a set-like object providing a view on D's keys"
+        return _OrderedDictKeysView(self)
+  #+END_SRC
+
+  View 对象内部直接包含了 Dict 对象的引用，通过一层封装的方式，限制了对 Dict 的操作，
+  但是达到了可以通过操作 View 对象同步操作 Dict 对象的功能。
+
+  相较于原有的实现，需要添加的代码并不是很多，但又很巧妙运用了语言特性，真棒！
+
+  另外，就是固定顺序的实现是通过在内部维护一个 *双向循环链表* 完成的：
+  #+BEGIN_SRC python
+    class _Link(object):
+        __slots__ = 'prev', 'next', 'key', '__weakref__'
+  #+END_SRC
+
+  这个 *双向循环链表* 是真的精简，当然，代码看起来有点绕，毕竟这种数据结构很少接触。
+
+  嗯，还有一个保存各个节点引用的 *哈希表*.
+
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L81][class OrderedDict(dict):]]
+
+  emmm, 还以为会是一个 ~list~ 呢......
 
 * 相关链接
   + [[https://docs.python.org/3/library/collections.html][collections — Container datatypes]]
