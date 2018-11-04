@@ -9,6 +9,8 @@
 - [[#userstring][UserString]]
 - [[#module__getattr__][module.__getattr__]]
 - [[#ordereddict][OrderedDict]]
+- [[#chainmap][ChainMap]]
+- [[#other][Other]]
 - [[#相关链接][相关链接]]
 
 * import
@@ -232,6 +234,35 @@
   + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L81][class OrderedDict(dict):]]
 
   emmm, 还以为会是一个 ~list~ 呢......
+
+* ChainMap
+  ChainMap 的实现方式和预期的也不太一样，当然，ChainMap 也没怎么用过......
+
+  #+BEGIN_SRC python
+    class ChainMap(_collections_abc.MutableMapping):
+        def __init__(self, *maps):
+            self.maps = list(maps) or [{}]          # always at least one map
+
+        def __missing__(self, key):
+            raise KeyError(key)
+
+        def __getitem__(self, key):
+            for mapping in self.maps:
+                try:
+                    return mapping[key]             # can't use 'key in mapping' with defaultdict
+                except KeyError:
+                    pass
+            return self.__missing__(key)            # support subclasses that define __missing__
+  #+END_SRC
+
+  还以为是把各个 map 合并到一个 map 中呢。
+
+* Other
+  剩下的 namedtuple 和 Counter 的源码瞄了几年，感觉没啥看头。
+
+  deque 呢，又是 C 代码......
+
+  就这样了。
 
 * 相关链接
   + [[https://docs.python.org/3/library/collections.html][collections — Container datatypes]]
