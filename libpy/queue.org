@@ -3,3 +3,112 @@
 #+EMAIL:      rgb-24bit@foxmail.com
 
 * Table of Contents                                       :TOC_4_gh:noexport:
+- [[#原理猜测][原理猜测]]
+- [[#实际实现][实际实现]]
+- [[#总结][总结]]
+- [[#相关链接][相关链接]]
+
+* 原理猜测
+  queue 模块本质上还是提供队列数据结构的支持，只不过这个队列是 *线程安全* 的，可以用于多线程之间的通信。
+
+  无论是 put 和 get 操作都涉及到 *写操作*, 那么，其内部实现必然会涉及到 *锁* 的操作。
+
+  另外，队列内部应该还有一个 task 计数，当 put 时就使这个计数加一，调用 ~task_done~ 方法时这个计数就减一。
+
+  队列对象的 ~join~ 方法应该是通过一个死循环判断 task 计数是否大于零。
+
+* 实际实现
+  看了一下实际的实现，我的猜测猜中了一部分，但是，实际的实现要高级多了。
+
+  在我的猜测中，就算用锁应该也只是用一个的样子，然而：
+  #+BEGIN_SRC python
+    # mutex must be held whenever the queue is mutating.  All methods
+    # that acquire mutex must release it before returning.  mutex
+    # is shared between the three conditions, so acquiring and
+    # releasing the conditions also acquires and releases mutex.
+    self.mutex = threading.Lock()
+
+    # Notify not_empty whenever an item is added to the queue; a
+    # thread waiting to get is notified then.
+    self.not_empty = threading.Condition(self.mutex)
+
+    # Notify not_full whenever an item is removed from the queue;
+    # a thread waiting to put is notified then.
+    self.not_full = threading.Condition(self.mutex)
+
+    # Notify all_tasks_done whenever the number of unfinished tasks
+    # drops to zero; thread waiting to join() is notified to resume
+    self.all_tasks_done = threading.Condition(self.mutex)
+  #+END_SRC
+
+  特别是这个 ~threading.Condition~ 对象，之前学多线程的过程中主要就是了解了一下互斥锁，没有看到这个 ~Condition~,
+  然后我翻了一下文档和源码：
+  #+BEGIN_SRC python
+    class Condition:
+        def wait(self, timeout=None):
+            waiter = _allocate_lock()
+            waiter.acquire()
+            self._waiters.append(waiter)
+            saved_state = self._release_save()
+            gotit = False
+            try:    # restore state no matter what (e.g., KeyboardInterrupt)
+                if timeout is None:
+                    waiter.acquire()
+                    gotit = True
+                else:
+                    if timeout > 0:
+                        gotit = waiter.acquire(True, timeout)
+                    else:
+                        gotit = waiter.acquire(False)
+                return gotit
+            finally:
+                self._acquire_restore(saved_state)
+                if not gotit:
+                    try:
+                        self._waiters.remove(waiter)
+                    except ValueError:
+                        pass
+
+        def notify(self, n=1):
+            """Wake up one or more threads waiting on this condition, if any.
+            If the calling thread has not acquired the lock when this method is
+            called, a RuntimeError is raised.
+            This method wakes up at most n of the threads waiting for the condition
+            variable; it is a no-op if no threads are waiting.
+            """
+            if not self._is_owned():
+                raise RuntimeError("cannot notify on un-acquired lock")
+            all_waiters = self._waiters
+            waiters_to_notify = _deque(_islice(all_waiters, n))
+            if not waiters_to_notify:
+                return
+            for waiter in waiters_to_notify:
+                waiter.release()
+                try:
+                    all_waiters.remove(waiter)
+                except ValueError:
+                    pass
+  #+END_SRC
+
+  这是两个很重要的方法，调用 ~wait~ 方法时会新建一个锁对象然后上锁，然后根据参数调用 ~acquire~ 方法阻塞。
+
+  由于在阻塞前将锁对象放入了一个队列，因此，在调用 ~notify~ 方法时可以解锁一个锁对象使得程序继续执行。
+
+  随机，就是在 ~Queue~ 的实现中对应的操作：
+  + 放入元素时等待 not_full 并调用 not_empty.notify
+  + 取出元素时等待 not_empty 并调用 not_full.notify
+  + 调用 task_done 时，当所有任务都完成了就调用 all_tasks_done.notify_all()
+  + 调用 join 时就调用 all_task_done.wait
+
+  同时，由于三个 ~Condition~ 对象内部的锁对象都是同一个对象，因此，可以保证进入任何一个 ~Condition~ 都是互斥的。
+
+* 总结
+  这次源码阅读最大的收获应该就是 ~threading.Condition~ 对象的实现原理和它的使用了，和 ~queue~ 模块本身的关系却不大 @_@
+
+  而 ~queue~ 模块实际上也只是在 ~Conllections.deque~ 对象外面包装了一层，使得它可以安全的在多些层的环境中使用，并提供任务计数的功能。
+
+* 相关链接
+  + [[https://docs.python.org/3/library/queue.html][queue — A synchronized queue class — Python 3.7.2 documentation]]
+  + [[https://github.com/python/cpython/blob/3.7/Lib/queue.py][cpython/queue.py at 3.7 · python/cpython]]
+  + [[https://github.com/python/cpython/blob/3.7/Lib/threading.py#L204][cpython/threading.py at 3.7 · python/cpython]]
+
