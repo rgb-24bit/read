@@ -1,3 +1,0 @@
-#+TITLE:      通过阅读源码学习
-#+AUTHOR:     rgb-24bit
-
