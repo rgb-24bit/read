@@ -1,6 +1,6 @@
 # 归档留言
 
-这个存储是受 [wangshunping/read<sub>requests</sub>](https://github.com/wangshunping/read_requests) 的影响创建的，当时感觉这种阅读源码的学习方式很有趣，便想尝试一下。
+这个存储是受 [wangshunping/read_requests](https://github.com/wangshunping/read_requests) 的影响创建的，当时感觉这种阅读源码的学习方式很有趣，便想尝试一下。
 
 一开始还好，但随着源码阅读的进行，我渐渐感觉现在这种源码阅读的方式不适合我。
 
