@@ -1,3 +1,32 @@
-#+TITLE: 通过阅读源码学习
+#+TITLE:      通过阅读源码学习
+#+AUTHOR:     rgb-24bit
 
+* 归档留言
+  这个存储库是受 [[https://github.com/wangshunping/read_requests][wangshunping/read_requests]] 的影响创建的，当时感觉这种阅读源码的学习方式很有趣，便想尝试一下。
+
+  一开始还好，但随着源码阅读的进行，我渐渐感觉现在这种源码阅读的方式不适合我。
+
+  太刻意了，太过细节化了，线性的阅读源码，耗费的时间也很多，阅读笔记也过于分散……
+
+  这使得源码阅读后的收获没有想象的那么多（但还是有一定的收获的）。
+
+  我觉得我需要换一种源码的阅读方式，不是一点点的阅读，而是上升到某个算法、某个功能、某个模块甚至某个系统上。
+
+  这一点上我觉得可以参考 [[https://github.com/freedombird9/how-to-read-source-code/blob/master/how-to-read-code.md][how-to-read-source-code/how-to-read-code.md]]。
+
+* Python
+  + [[file:python-patterns/README.org][python-patterns]] - ~Python~ 中的设计模式
+  + [[file:requests/README.org][requests]] - ~Pythonic~ 的类库
+  + [[file:blinker/README.org][blinker]] - ~Python~ 进程内信号/事件调度系统
+  + [[file:flasky/README.org][flasky]] - ~Flask Web Development~ 的源代码示例
+  + [[file:flask/README.org][flask]] - 轻量级、 易扩展的 ~Python web~ 框架
+  + [[file:webpy/README.org][webpy]] - 简单而直接的 ~Python web~ 框架
+  + [[file:libpy/README.org][libpy]] - ~Python~ 标准库
+    
+* Java    
+  + [[file:guava/README.org][guava]] - 谷歌的 ~Java~ 扩展类库合集
+
+* C-C++
+  + [[file:c-algorithms/README.org][c-algorithms]] - ~C~ 实现的数据结构与算法
+  + [[file:libc/README.org][libc]] - ~C~ 标准函数库
 
