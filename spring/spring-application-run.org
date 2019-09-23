@@ -199,7 +199,7 @@
     @enduml
   #+end_src
 
-  #+HTML: <img src="https://sm.ms/image/GwcVuWECp6J1o5j">
+  #+HTML: <img src="https://i.loli.net/2019/09/23/GwcVuWECp6J1o5j.png">
 
   源码看到这里，大概就结束了，虽然看了一波大致的流程，但是用处并不是很大，主要原因在于：
   + SpringApplication 执行流程中的插入点很多，这些插入点出执行了什么逻辑并不是很清楚
