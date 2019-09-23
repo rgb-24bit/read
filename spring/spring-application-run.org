@@ -1,0 +1,217 @@
+#+TITLE:      SpringApplication 执行流程
+
+* 目录                                                    :TOC_4_gh:noexport:
+- [[#前言][前言]]
+- [[#springapplication-实例的创建过程][SpringApplication 实例的创建过程]]
+- [[#springapplicationrun-方法的执行][SpringApplication.run 方法的执行]]
+- [[#结语][结语]]
+
+* 前言
+  和常规的 Spring 程序不一样，常规的 Spring 程序通常是从 ApplicationContext 的构建开始的，而 Spring Boot 程序通常是从 SpringApplication 的构建开始。
+
+  SpringApplication 会为我们完成 ApplicationContext 的构建，并借助 Spring 本身强大的扩展机制来完成自动配置、上下文初始化的过程。
+
+  SpringApplication 的执行流程只要可以分为两个部分：
+  1. SpringApplication 实例的创建过程
+  2. SpringApplication.run 方法的执行
+
+  两个部分都是相当重要的部分，源码的阅读也分为这两个部分来进行。
+
+* SpringApplication 实例的创建过程
+  创建 SpringApplication 实例的过程可以看做是执行 SpringApplication 的构造函数的过程，而 SpringApplication 的主要的构造函数为：
+  #+begin_src java
+    public SpringApplication(ResourceLoader resourceLoader, Class<?>... primarySources) {
+      this.resourceLoader = resourceLoader;
+      Assert.notNull(primarySources, "PrimarySources must not be null");
+      this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+      this.webApplicationType = WebApplicationType.deduceFromClasspath();
+      setInitializers((Collection) getSpringFactoriesInstances(
+                        ApplicationContextInitializer.class));
+      setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+      // 获取包含 main 方法的入口类
+      this.mainApplicationClass = deduceMainApplicationClass();
+    }
+  #+end_src
+
+  按照通常的调用方式来看，调用 SpringApplication 的构造方法时，参数 ~resourceLoader~ 多数情况下都为 null，而 ~primarySources~ 则是我们制定的启动类。
+
+  当然了，这两个参数在构造方法阶段其实是没有多少用的，关键的代码在于下面三行：
+  #+begin_src java
+    // 判断当前应用程序的类型，是否是 WebApplication，是那种 WebApplication
+    this.webApplicationType = WebApplicationType.deduceFromClasspath();
+    // 获取并设置 ApplicationContextInitializer 和 ApplicationListener
+    setInitializers((Collection) getSpringFactoriesInstances(
+                      ApplicationContextInitializer.class));
+    setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+  #+end_src
+
+  其中，当前应用程序的类型的判断就是判断 CLASSPATH 下是否存在特定的类，比如 Servlet 之类的，这个会影响到后续创建的 ApplicationContext 类型。
+  
+  在完成应用程序类型的判断后，就会借助 ~SpringFactoriesLoader~ 提供的类似于 ~SPI~ 的机制在 ~META-INF/spring.factories~ 寻找所有符合目标类型的实现类，
+  并创建这些类的实例保存。
+
+  这里主要需要关注的就是 ApplicationContextInitializer 和 ApplicationListener 这两个接口，后续会用到。
+
+* SpringApplication.run 方法的执行
+  SpringApplication.run 方法中的逻辑其实并不复杂，复杂的逻辑在通过 SpringFactoriesLoader 加载的 ApplicationContextInitializer 和 ApplicationListener 中，
+  尤其是在程序集成了很多的服务后，一不小心就不知道程序跑到什么地方去了……
+
+  但是，单独的看 SpringApplication.run 方法的流程的话，并不是很复杂，其源码如下：
+  #+begin_src java
+    public ConfigurableApplicationContext run(String... args) {
+      StopWatch stopWatch = new StopWatch();
+      stopWatch.start();
+      ConfigurableApplicationContext context = null;
+      Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
+      configureHeadlessProperty();
+      SpringApplicationRunListeners listeners = getRunListeners(args);
+      listeners.starting();
+      try {
+        ApplicationArguments applicationArguments = new DefaultApplicationArguments(
+          args);
+        ConfigurableEnvironment environment = prepareEnvironment(listeners,
+                                                                 applicationArguments);
+        configureIgnoreBeanInfo(environment);
+        Banner printedBanner = printBanner(environment);
+        context = createApplicationContext();
+        exceptionReporters = getSpringFactoriesInstances(
+          SpringBootExceptionReporter.class,
+          new Class[] { ConfigurableApplicationContext.class }, context);
+        prepareContext(context, environment, listeners, applicationArguments,
+                       printedBanner);
+        refreshContext(context);
+        afterRefresh(context, applicationArguments);
+        stopWatch.stop();
+        if (this.logStartupInfo) {
+          new StartupInfoLogger(this.mainApplicationClass)
+            .logStarted(getApplicationLog(), stopWatch);
+        }
+        listeners.started(context);
+        callRunners(context, applicationArguments);
+      }
+      catch (Throwable ex) {
+        handleRunFailure(context, ex, exceptionReporters, listeners);
+        throw new IllegalStateException(ex);
+      }
+
+      try {
+        listeners.running(context);
+      }
+      catch (Throwable ex) {
+        handleRunFailure(context, ex, exceptionReporters, null);
+        throw new IllegalStateException(ex);
+      }
+      return context;
+    }
+  #+end_src
+
+  这个代码是很长的，因此，这里还是将和主流程相关的源码提取出来理解：
+  #+begin_src java
+    public ConfigurableApplicationContext run(String... args) {
+      ConfigurableApplicationContext context = null;
+
+      // 获取 SpringApplicationRunListener 的实现类
+      SpringApplicationRunListeners listeners = getRunListeners(args);
+
+      // 调用 SpringApplicationRunListener 的 starting 方法，无参数传递
+      listeners.starting();
+
+      try {
+        // 配置 ConfigurableEnvironment，主要为 PropertySources 和 Profile
+        // 调用 SpringApplicationRunListener 的 environmentPrepared 方法，传递 environment 参数
+        ConfigurableEnvironment environment = prepareEnvironment(listeners,
+                                                                 applicationArguments);
+
+        // 创建 ApplicationContext，会根据不同应用程序的类型创建不同的 ApplicationContext
+        // Servlet -> AnnotationConfigServletWebServerApplicationContext
+        // Reactive -> AnnotationConfigReactiveWebServerApplicationContext
+        // Others -> AnnotationConfigApplicationContext
+        context = createApplicationContext();
+
+        // 配置 ApplicationContext，prepareContext 方法内部会依次进行以下操作
+        // 1. 将 environment 和 context 进行绑定
+        // 2. 调用 ApplicationContextInitializer 的 initialize 方法，传递 context 参数
+        // 3. 调用 SpringApplicationRunListener 的 contextPrepared 方法，传递 context 参数
+        // 4. 加载 BeanDefinition
+        // 5. 调用 SpringApplicationRunListener 的 contextLoaded 方法，传递 context 参数
+        prepareContext(context, environment, listeners, applicationArguments,
+                       printedBanner);
+
+        // 刷新上下文，相当重要又复杂的一个过程，ApplicationListenner 的调用就发生在这个方法之中
+        refreshContext(context);
+
+        // 上下文刷新完成后的一个 hook，可以由 SpringApplication 的子类来提供
+        afterRefresh(context, applicationArguments);
+
+        // 调用 SpringApplicationRunListener 的 started 方法，传递 context 参数
+        listeners.started(context);
+
+        // 获取 context 中的 ApplicationRunner 和 CommadnLineRunner 并执行
+        callRunners(context, applicationArguments);
+      }
+      catch (Throwable ex) {
+        throw new IllegalStateException(ex);
+      }
+
+      try {
+        // 调用 SpringApplicationRunListener 的 running 方法，传递 context 参数
+        listeners.running(context);
+      }
+      catch (Throwable ex) {
+        throw new IllegalStateException(ex);
+      }
+
+      // 返回创建的 ApplicationContext
+      return context;
+    }
+  #+end_src
+
+  emmm……就算只提取主流程相关的代码也还是太复杂了 @_@，带还是可以总结一波流程的：
+  #+begin_src plantuml
+    @startuml
+
+    start
+
+    #6cf: SpringApplicationRunListener.starting();
+
+    partition prepareEnvironment {
+      #fff: Configuration Environment;
+      #6cf: SpringApplicationRunListener.environmentPrepared(environment);
+    }
+
+    #fff: Create ApplicationContext;
+
+    partition prepareContext {
+      #fff: Bind environment to context;
+      #ecf: ApplicationContextInitializer.initialize(context);
+      #6cf: SpringApplicationRunListener.contextPrepared(context);
+      #fff: Load BeanDefinition;
+      #6cf: SpringApplicationRunListener.contextLoaded(context);
+    }
+
+    #ecf: refreshContext;
+    #6cf: SpringApplicationRunListener.started(context);
+    #fff: ApplicationRunner.run(), CommadnLineRunner.run();
+    #6cf: SpringApplicationRunListener.running();
+
+    end
+
+    @enduml
+  #+end_src
+
+  #+HTML: <img src="https://sm.ms/image/GwcVuWECp6J1o5j">
+
+  源码看到这里，大概就结束了，虽然看了一波大致的流程，但是用处并不是很大，主要原因在于：
+  + SpringApplication 执行流程中的插入点很多，这些插入点出执行了什么逻辑并不是很清楚
+
+* 结语
+  这次的源码阅读并没有预期的收获那么大，当然了，如果对源码进行进一步的阅读，势必还可以有更多的收获，但是，时间成本太高了！
+
+  或者说，我本身对 Spring 的熟悉程度还没有那么高，以至于看到某些关键代码的时候反应不过来……
+
+  但是这次也不是没有收获，大致明白了 SpringApplication 执行过程中存在哪些插入点，这些插入点可以获取到怎样的参数，大概可以完成什么样的事。
+
+  但是，除了这些 Listenner 以外，Spring 还有其他的很多的插入点，可能是在 Bean 创建之前，也有可能是之后……
+
+  (╯°□°）╯︵┻━┻
+
