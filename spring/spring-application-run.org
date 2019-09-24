@@ -1,4 +1,4 @@
-#+TITLE:      SpringApplication 执行流程
+#+TITLE:      SpringApplication 实例的创建及 run 方法的执行流程
 
 * 目录                                                    :TOC_4_gh:noexport:
 - [[#前言][前言]]

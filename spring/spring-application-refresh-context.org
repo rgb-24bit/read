@@ -1,0 +1,88 @@
+#+TITLE:      SpringApplication 中 ApplicationContext 的刷新
+
+* 目录                                                    :TOC_4_gh:noexport:
+- [[#前言][前言]]
+- [[#承前启后][承前启后]]
+- [[#applicationcontext-的刷新][ApplicationContext 的刷新]]
+
+* 前言
+  前面主要看了一下 ~SpringApplication.run~ 方法中的流程，发现存在很大一部分的关键逻辑在 ~refreshContext~ 调用中，
+  这次，就来看一下这个方法中的逻辑吧！
+
+* 承前启后
+  再次阅读源码 ~SpringApplication.run~ 方法中的源码后发现前面的理解存在一点错误，主要是在 ~SpringApplicationRunListener~ 监听器和 ~prepareContext()~ 方法调用上。
+
+  首先是 SpringApplicationRunListener 这个监听器，目前来说，Spring Boot 只有一个内置的 ~EventPublishingRunListener~ 监听器，
+  这个监听器会通过 ~SimpleApplicationEventMulticaster~ 将相关的事件发送给 ~ApplicationListener~ 监听器，也就是说，
+  ApplicationListener 产生作用的时间比之前预想的要早很多！
+
+  根据 EventPublishingRunListener 的几个方法，可以看出来调用方法和实际的事件之间的映射关系：
+  |---------------------+-------------------------------------+------------------------------------------------------------------|
+  | 方法                | 事件                                | 相关                                                             |
+  |---------------------+-------------------------------------+------------------------------------------------------------------|
+  | ~starting~            | ~ApplicationStartingEvent~            |                                                                  |
+  | ~environmentPrepared~ | ~ApplicationEnvironmentPreparedEvent~ | Environment 已准备好                                             |
+  | ~contextPrepared~     | ~ApplicationContextInitializedEvent~  |                                                                  |
+  | ~contextLoaded~       | ~ApplicationPreparedEvent~            | Context 只加载了基本的 BeanDefinition                            |
+  | ~started~             | ~ApplicationStartedEvent~             | Context 已加载了所有的 BeanDefinition 并创建了需要的立即创建的实例 |
+  | ~running~             | ~ApplicationReadyEvent~               |                                                                  |
+  | ~failed~              | ~ApplicationFailedEvent~              |                                                                  |
+  |---------------------+-------------------------------------+------------------------------------------------------------------|
+
+  其中，EventPublishingRunListener.contextPrepared 方法是在 SpringApplication 的 prepareContext 方法中调用的，之前以为这时 BeanDefinition 已经加载好了，
+  结果现在才发现，这时只是加载了基本的 BeanDefinition，除了内置的以外主要就是我们的 *启动类* 了。
+
+  实际的 BeanDefinition 的加载已经 Bean 的创建是在 refreshContext 中完成的。
+
+* ApplicationContext 的刷新
+  ApplicationContext 的刷新的主要逻辑其实是在 ~AbstractApplicationContext~ 的 ~refresh~ 方法中，这个方法在调用时是没有参数的，也就是说，
+  ApplicationContext 的刷新基本上就只是 ApplicationContext 本身的事情，和 SpringApplication 的关系不大。
+
+  只不过，这个过程是由 SpringApplication 来开启罢了。
+
+  ApplicationContext 刷新的主要逻辑如下：
+  #+begin_src java
+    public void refresh() throws BeansException, IllegalStateException {
+      synchronized (this.startupShutdownMonitor) {
+        // 获取 BeanFactory，方法内部会调用子类的 refreshBeanFactory 方法刷新 BeanFactory
+        ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+        // 进行 BeanFactory 的基本配置，比如 ClassLoader 和 PostProcesors
+        prepareBeanFactory(beanFactory);
+
+        try {
+          // 允许在子类中对 BeanFactory 进行后处理
+          postProcessBeanFactory(beanFactory);
+
+          // 调用 BeanFactoryPostProcessors，加载 BeanDefinition 到 Context
+          invokeBeanFactoryPostProcessors(beanFactory);
+
+          // 实例化并注册所有的 BeanPostProcessors
+          registerBeanPostProcessors(beanFactory);
+
+          // 初始化 ApplicationEnventMulticaster
+          initApplicationEventMulticaster();
+
+          // 在特定上下文子类中初始化其他特殊 Bean
+          onRefresh();
+
+          // 注册 ApplicationListener 到 ApplicationEnventMulticaster
+          registerListeners();
+
+          // 实例化剩下的所有单例 Bean
+          finishBeanFactoryInitialization(beanFactory);
+
+          // 最后的操作，会发布 ContextRefreshedEvent 事件
+          finishRefresh();
+        }
+        catch (BeansException ex) {
+          throw ex;
+        }
+      }
+    }
+  #+end_src
+
+  emmmm……突然发现，这部分的源码看了以后好像没啥用处？！
+  
+  很多关键的东西都这这个流程外边，和这个流程关系比较紧密的大概就是事件相关的一些东西了……
+  
