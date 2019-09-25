@@ -4,6 +4,8 @@
 - [[#前言][前言]]
 - [[#承前启后][承前启后]]
 - [[#applicationcontext-的刷新][ApplicationContext 的刷新]]
+- [[#事件机制][事件机制]]
+- [[#结语][结语]]
 
 * 前言
   前面主要看了一下 ~SpringApplication.run~ 方法中的流程，发现存在很大一部分的关键逻辑在 ~refreshContext~ 调用中，
@@ -17,17 +19,17 @@
   ApplicationListener 产生作用的时间比之前预想的要早很多！
 
   根据 EventPublishingRunListener 的几个方法，可以看出来调用方法和实际的事件之间的映射关系：
-  |---------------------+-------------------------------------+------------------------------------------------------------------|
-  | 方法                | 事件                                | 相关                                                             |
-  |---------------------+-------------------------------------+------------------------------------------------------------------|
-  | ~starting~            | ~ApplicationStartingEvent~            |                                                                  |
-  | ~environmentPrepared~ | ~ApplicationEnvironmentPreparedEvent~ | Environment 已准备好                                             |
-  | ~contextPrepared~     | ~ApplicationContextInitializedEvent~  |                                                                  |
-  | ~contextLoaded~       | ~ApplicationPreparedEvent~            | Context 只加载了基本的 BeanDefinition                            |
+  |---------------------+-------------------------------------+--------------------------------------------------------------------|
+  | 方法                | 事件                                | 相关                                                               |
+  |---------------------+-------------------------------------+--------------------------------------------------------------------|
+  | ~starting~            | ~ApplicationStartingEvent~            |                                                                    |
+  | ~environmentPrepared~ | ~ApplicationEnvironmentPreparedEvent~ | Environment 已准备好                                               |
+  | ~contextPrepared~     | ~ApplicationContextInitializedEvent~  |                                                                    |
+  | ~contextLoaded~       | ~ApplicationPreparedEvent~            | Context 只加载了基本的 BeanDefinition                              |
   | ~started~             | ~ApplicationStartedEvent~             | Context 已加载了所有的 BeanDefinition 并创建了需要的立即创建的实例 |
-  | ~running~             | ~ApplicationReadyEvent~               |                                                                  |
-  | ~failed~              | ~ApplicationFailedEvent~              |                                                                  |
-  |---------------------+-------------------------------------+------------------------------------------------------------------|
+  | ~running~             | ~ApplicationReadyEvent~               |                                                                    |
+  | ~failed~              | ~ApplicationFailedEvent~              |                                                                    |
+  |---------------------+-------------------------------------+--------------------------------------------------------------------|
 
   其中，EventPublishingRunListener.contextPrepared 方法是在 SpringApplication 的 prepareContext 方法中调用的，之前以为这时 BeanDefinition 已经加载好了，
   结果现在才发现，这时只是加载了基本的 BeanDefinition，除了内置的以外主要就是我们的 *启动类* 了。
@@ -82,7 +84,107 @@
     }
   #+end_src
 
-  emmmm……突然发现，这部分的源码看了以后好像没啥用处？！
+  研究了一下，ApplicationContext 的刷新主要和 BeanFactory、BeanFactoryPostProcessor 和 BeanPostProcessor 有关：
+  1. 获取当前上下文的 BeanFactory，并对 BeanFactory 进行一些准备操作
+  2. 调用注册到上下文中的 BeanFactoryPostProcessor，其中，通过注解方式定义的 Bean 就是在这个阶段进行解析的
+  3. 实例化上下文中注册的所有 BeanPostProcessor
+  4. 实例化所有的单例 Bean，实例化过程中会调用 BeanPostProcessor 对它们进行处理
+
+  这里的过程差不多就是 Spring Bean 的生命周期了，因此可以参考：[[https://www.cnblogs.com/zrtqsk/p/3735273.html][Spring Bean的生命周期（非常详细） - Chandler Qian - 博客园]]
+
+  当然了，除了普通的 Bean 以外，还实例化并注册了 ApplicationListener，并在上下文刷新完成后发布了 ContextRefreshedEvent 事件。
+
+* 事件机制
+  通过 SpringApplication.run 方法的执行流程和 ApplicationContext 的刷新可以看出来，SpringApplication 在启动阶段利用事件机制提供了强大的扩展机制。
   
-  很多关键的东西都这这个流程外边，和这个流程关系比较紧密的大概就是事件相关的一些东西了……
+  SpringApplication 中的事件大概可以分为三个部分：
+  + 通过 SpringFactoriesLoader 加载的 SpringApplicationRunListener，目前只有 EventPublishingRunListener，用于调度 ApplicationListener
+  + 通过 SpringFactoriesLoader 加载的 ApplicationContextInitializer
+  + 通过 SpringFactoriesLoader 加载的 ApplicationListener
+  + 注册为 Bean 的 ApplicationListener
+
+  和 SpringApplicationRunListener 相关的事件：
+  |---------------------+-------------------------------------+-------------------------------------------------------------------------|
+  | 方法                | 事件                                | 相关                                                                    |
+  |---------------------+-------------------------------------+-------------------------------------------------------------------------|
+  | ~starting~            | ~ApplicationStartingEvent~            | 这个阶段 Context 还没有创建                                             |
+  | ~environmentPrepared~ | ~ApplicationEnvironmentPreparedEvent~ | 这个阶段 Context 依然没有创建，但是 Environment 已经准备好了            |
+  | ~contextPrepared~     | ~ApplicationContextInitializedEvent~  | 这个阶段 Context 已经创建，同时已经调用了 ApplicationContextInitializer |
+  | ~contextLoaded~       | ~ApplicationPreparedEvent~            | 这个阶段 Context 已经加载了基本的 BeanDefinition                        |
+  | ~started~             | ~ApplicationStartedEvent~             | 这个阶段 Context 已完成刷新                                             |
+  | ~running~             | ~ApplicationReadyEvent~               |                                                                         |
+  | ~failed~              | ~ApplicationFailedEvent~              |                                                                         |
+  |---------------------+-------------------------------------+-------------------------------------------------------------------------|
+
+  其中，在 ~contextLoaded~ 方法中 ~EventPublishingRunListener~ 会将 SpringApplication 中实现了 ~ApplicationContextAware~ 接口的 ~ApplicationListener~ 注册到上下文，
+  并在之后的方法中调用 ~ApplicationContext~ 来发布事件。
+
+  也就是说，从 ~contextLoaded~ 方法开始，通过 Bean 定义的 ApplicationListener 才可以开始接收事件。
+
+  到这里，SpringApplicationRunListener 和 ApplicationContextInitializer 的调用就 OK 了，剩下的就是 ApplicationListener 了，由于同时存在于 SpringApplication 和 ApplicationContext，
+  所以，就分为 SpringApplication.ApplicationListener 和 ApplicationContext.ApplicationListener 好了。
   
+  整个调用过程大概也就可以分为：
+  #+begin_src plantuml :exports none
+    @startuml
+
+    start
+
+    #ecf: SpringApplication.ApplicationListener.on(ApplicationStartingEvent);
+
+    note right #fff
+      EventPublishingRunListener.starting()
+    end note
+
+    #ecf: SpringApplication.ApplicationListener.on(ApplicationEnvironmentPreparedEvent);
+
+    note right #fff
+      EventPublishingRunListener.environmentPrepared()
+    end note
+
+    #ecf: SpringApplication.ApplicationListener.on(ApplicationContextInitializedEvent);
+
+    note right #fff
+      After ApplicationContextInitializer.initialize(context)
+      ....
+      EventPublishingRunListener.contextPrepared()
+    end note
+
+    #6cf: ApplicationContext.ApplicationListener.on(ApplicationPreparedEvent);
+
+    note right #fff
+      EventPublishingRunListener.contextLoaded()
+    end note
+
+    #6cf: ApplicationContext.ApplicationListener.on(ContextRefreshedEvent);
+
+    note right #fff
+      ApplicationContext.publishEvent()
+    end note
+
+    #6cf: ApplicationContext.ApplicationListener.on(ApplicationStartedEvent);
+
+    note right #fff
+      EventPublishingRunListener.started()
+    end note
+
+    #6cf: ApplicationContext.ApplicationListener.on(ApplicationReadyEvent);
+
+    note right #fff
+      EventPublishingRunListener.running()
+    end note
+
+    end
+
+    @enduml
+  #+end_src
+
+  #+HTML: <img src="https://i.loli.net/2019/09/25/Bu6tH5RCSNLdYck.png">
+
+* 结语
+  这一波源码看下来的话，还是有一些收获的，单主要一直是对一些流程的理解，实际的实现代码反而看的不多……
+
+  另外，这次阅读源码也发现，之前对 Spring Boot 自动配置的实现原理的理解是有问题的，大概就是走到门前的地步就以为已经理解清楚了 @_@
+
+  后续的话，可以看一下 BeanFactoryPostProcessor、BeanPostProcessor、BeanFactory 的相关源码，同时，在好好理解一下 Spring 中事件的使用。
+
