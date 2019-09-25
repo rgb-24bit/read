@@ -12,3 +12,6 @@
 
 # source code
 src/
+
+# Mac
+.DS_Store
