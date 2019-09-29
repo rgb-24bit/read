@@ -1,0 +1,347 @@
+#+TITLE:      Spring 中事务管理的基本逻辑与接入方式
+
+* 目录                                                    :TOC_4_gh:noexport:
+- [[#jdbc-事务管理][JDBC 事务管理]]
+- [[#spring-事务管理][Spring 事务管理]]
+  - [[#beforedatabaseoperation][beforeDatabaseOperation]]
+  - [[#afterdatabaseoperation][afterDatabaseOperation]]
+- [[#事务管理流程梳理][事务管理流程梳理]]
+- [[#mybatis--redis-事务][Mybatis & Redis 事务]]
+- [[#小结][小结]]
+
+* JDBC 事务管理
+  Java 中的数据库操作通常都是由 JDBC Connection 对象来完成的，事务操作也不例外，JDBC Connection 是默认开启了事务的，
+  只不过还开启了自动提交，因此，平时使用起来感觉就像是没有事务一样。
+  
+  而通过 JDBC Connection 来管理事务的常规逻辑为：
+  #+begin_src plantuml :exports none
+    @startuml
+
+    start
+
+    partition beforeDatabaseOperation {
+      #6cf: Get connection object;
+      #6cf: Close the auto commit;
+    }
+
+    #ecf: Do database operation;
+
+    partition afterDatabaseOperation {
+      #ecf:if (Has exception) then(y)
+        #6cf: Connection.rollback();
+      else (n)
+        #6cf: Connection.commit();
+      endif
+      #6cf: Open the auto commit;
+    }
+
+    end
+
+    @enduml
+  #+end_src
+
+  #+HTML: <img src="https://i.loli.net/2019/09/29/7uKGRqxkiygAYwN.png">
+  
+  可以看到，这个逻辑中，除了数据库的操作可能会不一样以外，其他的逻辑大多数时候都是一样的。
+
+  因此，Spring 事务将数据库操作以外的逻辑单独的抽了出来，通过 AOP 提供了事务的支持，并通过一些方式提供了扩展接口。
+
+* Spring 事务管理
+  Spring 中常用的事务管理方式是通过 ~@Transactional~ 注解来进行管理的，基本原理就是通过 AOP 的方式将事务管理的相关操作抽取出来包在我们的逻辑外面。
+
+  而这部分逻辑就位于 ~TransactionAspectSupport~ 中，简化的代码如下：
+  #+begin_src java
+    protected Object invokeWithinTransaction(Method method, @Nullable Class<?> targetClass,
+                                             final InvocationCallback invocation) throws Throwable {
+      final PlatformTransactionManager tm = determineTransactionManager(txAttr);
+
+      // 不满足该条件的事务管理逻辑已省略
+      if (txAttr == null || !(tm instanceof CallbackPreferringPlatformTransactionManager)) {
+        // Standard transaction demarcation with getTransaction and commit/rollback calls.
+        TransactionInfo txInfo = createTransactionIfNecessary(tm, txAttr, joinpointIdentification);
+        Object retVal = null;
+        try {
+          // This is an around advice: Invoke the next interceptor in the chain.
+          // This will normally result in a target object being invoked.
+          retVal = invocation.proceedWithInvocation();
+        }
+        catch (Throwable ex) {
+          // target invocation exception
+          completeTransactionAfterThrowing(txInfo, ex);
+          throw ex;
+        }
+        finally {
+          cleanupTransactionInfo(txInfo);
+        }
+        commitTransactionAfterReturning(txInfo);
+        return retVal;
+      }
+    }
+  #+end_src
+
+** beforeDatabaseOperation
+   首先是方法 ~createTransactionIfNecessary~ 的调用，这个方法中会调用 ~PlatformTransactionManager.getTransaction~ 方法，这个方法由 ~PlatformTransactionManager~ 的实现类 ~AbstractPlatformTransactionManager~ 提供了基本的实现：
+   #+begin_src java
+     public final TransactionStatus getTransaction(@Nullable TransactionDefinition definition) throws TransactionException {
+       Object transaction = doGetTransaction();
+
+       if (definition == null) {
+         // Use defaults if no transaction definition given.
+         definition = new DefaultTransactionDefinition();
+       }
+
+       if (isExistingTransaction(transaction)) {
+         // Existing transaction found -> check propagation behavior to find out how to behave.
+         return handleExistingTransaction(definition, transaction, debugEnabled);
+       }
+
+       if (definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRED ||
+           definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW ||
+           definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_NESTED) {
+         SuspendedResourcesHolder suspendedResources = suspend(null);
+         if (debugEnabled) {
+           logger.debug("Creating new transaction with name [" + definition.getName() + "]: " + definition);
+         }
+         try {
+           boolean newSynchronization = (getTransactionSynchronization() != SYNCHRONIZATION_NEVER);
+           DefaultTransactionStatus status = newTransactionStatus(
+             definition, transaction, true, newSynchronization, debugEnabled, suspendedResources);
+
+           doBegin(transaction, definition);
+
+           prepareSynchronization(status, definition);
+           return status;
+         }
+         catch (RuntimeException | Error ex) {
+           resume(null, suspendedResources);
+           throw ex;
+         }
+       }
+     }
+   #+end_src
+
+   这个方法中的逻辑大概可以归纳为：获取事务对象，然后根据是否是已存在的事务进行不同的处理。这里主要阅读和新的事务相关的源码。
+
+   对于新的事务来说，执行的关键操作便是 ~doBegin~ 方法的调用了，这个方法需要由子类来实现，这里的话，就可以看看 ~DataSourceTransactionManager~ 的实现：
+   #+begin_src java
+     protected void doBegin(Object transaction, TransactionDefinition definition) {
+       DataSourceTransactionObject txObject = (DataSourceTransactionObject) transaction;
+       Connection con = null;
+
+       try {
+         // 如果连接对象不存在就创建新的连接对象
+         if (!txObject.hasConnectionHolder() || txObject.getConnectionHolder().isSynchronizedWithTransaction()) {
+           Connection newCon = obtainDataSource().getConnection();
+           txObject.setConnectionHolder(new ConnectionHolder(newCon), true);
+         }
+
+         con = txObject.getConnectionHolder().getConnection();
+
+         // 关闭自动提交
+         if (con.getAutoCommit()) {
+           txObject.setMustRestoreAutoCommit(true);
+           con.setAutoCommit(false);
+         }
+
+         txObject.getConnectionHolder().setTransactionActive(true);
+
+         // 设置超时
+         int timeout = determineTimeout(definition);
+         if (timeout != TransactionDefinition.TIMEOUT_DEFAULT) {
+           txObject.getConnectionHolder().setTimeoutInSeconds(timeout);
+         }
+
+         // 绑定当前连接对象到当前线程
+         if (txObject.isNewConnectionHolder()) {
+           TransactionSynchronizationManager.bindResource(obtainDataSource(), txObject.getConnectionHolder());
+         }
+       }
+
+       catch (Throwable ex) {
+         if (txObject.isNewConnectionHolder()) {
+           DataSourceUtils.releaseConnection(con, obtainDataSource());
+           txObject.setConnectionHolder(null, false);
+         }
+         throw new CannotCreateTransactionException("Could not open JDBC Connection for transaction", ex);
+       }
+     }
+   #+end_src
+  
+   这部分的核心逻辑是较为简单的，其中有一个非常关键的操作是绑定当前连接对象到当前线程，这用到了一个非常重要的工具类 ~TransactionSynchronizationManager~.
+
+   这个类通过 ~ThreadLocal~ 存储了很多当前线程上下文中和事务相关的对象，除了 ~ConnectionHolder~ 以外，还有一些其他的后续会用到的东西。
+
+** afterDatabaseOperation
+   执行完数据库操作后，根据执行情况会执行 ~completeTransactionAfterThrowing~ 和 ~commitTransactionAfterReturning~ 两种操作，然而这两种操作的逻辑基本上都是相同的，
+   所有就只看 ~commitTransactionAfterReturning~ 的好了，毕竟，一般情况下，还是正常结束的事务要多一点。
+
+   ~commitTransactionAfterReturning~ 会调用 ~PlatformTransactionManager~ 的 ~commit~ 方法，这里可以看一下 ~AbstractPlatformTransactionManager~ 的实现：
+   #+begin_src java
+     @Override
+     public final void commit(TransactionStatus status) throws TransactionException {
+       DefaultTransactionStatus defStatus = (DefaultTransactionStatus) status;
+
+       if (defStatus.isLocalRollbackOnly()) {
+         processRollback(defStatus, false);
+         return;
+       }
+
+       if (!shouldCommitOnGlobalRollbackOnly() && defStatus.isGlobalRollbackOnly()) {
+         processRollback(defStatus, true);
+         return;
+       }
+
+       processCommit(defStatus);
+     }
+   #+end_src
+
+   可以看到，Spring 为一些 ~RollbackOnly~ 的情况进行了特殊处理，比如测试，实际的提交操作位于 ~processCommit~ 方法的调用之中：
+   #+begin_src java
+     private void processCommit(DefaultTransactionStatus status) throws TransactionException {
+       try {
+         triggerBeforeCommit(status);
+
+         triggerBeforeCompletion(status);
+
+         if (status.hasSavepoint()) {
+           status.releaseHeldSavepoint();
+         }
+         else if (status.isNewTransaction()) {
+           doCommit(status);
+         }
+
+         try {
+           triggerAfterCommit(status);
+         }
+         finally {
+           triggerAfterCompletion(status, TransactionSynchronization.STATUS_COMMITTED);
+         }
+       }
+       finally {
+         cleanupAfterCompletion(status);
+       }
+     }
+   #+end_src
+
+   这是极为简化后的代码，但大体逻辑还是差不多的，提交操作被 ~triggerCompletion~ 和 ~triggerCommit~ 所包围，这两个方法算是 Spring 事务为提供的扩展接口，
+   内部逻辑都可以归纳为 ~TransactionSynchronizationUtils~ 同名方法的调用。
+
+   而 ~TransactionSynchronizationUtils~ 中的逻辑又基本是如下形式：
+   #+begin_src java
+     public static void triggerBeforeCommit(Object arg) {
+       for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+         synchronization.method(arg);
+       }
+     }
+   #+end_src
+
+   这里比较特殊的是 ~triggerAfterCompletion~ 的调用，这个方法会在获取到 ~TransactionSynchronizationManager~ 中的 ~TransactionSynchronization~ 后清除，后续操作通过参数的方式传递 ~TransactionSynchronization~ 对象：
+   #+begin_src java
+     private void triggerAfterCompletion(DefaultTransactionStatus status, int completionStatus) {
+       if (status.isNewSynchronization()) {
+         List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+         TransactionSynchronizationManager.clearSynchronization();
+         if (!status.hasTransaction() || status.isNewTransaction()) {
+           invokeAfterCompletion(synchronizations, completionStatus);
+         }
+         else if (!synchronizations.isEmpty()) {
+           registerAfterCompletionWithExistingTransaction(status.getTransaction(), synchronizations);
+         }
+       }
+     }
+   #+end_src
+
+   而 ~TransactionSynchronization~ 可以通过 ~TransactionSynchronizationManager~ 的 ~registerSynchronization~ 方法进行注册，这意味着我们只需要实现 ~TransactionSynchronization~ 接口，
+   就可以对事务的提交和回滚阶段进行干预！
+
+   除了这个扩展机制以外，执行提交逻辑的 ~doCommit~ 方法是由子类实现的，在 ~DataSourceTransactionManager~ 中的逻辑如下：
+   #+begin_src java
+     protected void doCommit(DefaultTransactionStatus status) {
+       DataSourceTransactionObject txObject = (DataSourceTransactionObject) status.getTransaction();
+       Connection con = txObject.getConnectionHolder().getConnection();
+
+       try {
+         con.commit();
+       }
+       catch (SQLException ex) {
+         throw new TransactionSystemException("Could not commit JDBC transaction", ex);
+       }
+     }
+   #+end_src
+
+* 事务管理流程梳理
+  通过前面的源码的阅读对 Spring 事务管理的逻辑有了基本的理解，但由于太长了还是需要梳理一下：
+  #+begin_src plantuml :exports none
+    @startuml
+
+    start
+
+    partition beforeDatabaseOperation {
+      : Do get transaction;
+
+      if (Existing transaction) then(y)
+        :Handle existing transaction;
+      else (n)
+        : Get connection object;
+        : Close the auto commit;
+        : Bind connection to current thread;
+      endif
+    }
+
+    : Do database operation;
+
+    partition afterDatabaseOperation {
+      if (Has exception) then(y)
+        : triggerBeforeCompletion();
+        : doRollback();
+        : triggerAfterCompletion();
+        : cleanupAfterCompletion();
+      else (n)
+        : triggerBeforeCommit();
+        : triggerBeforeCompletion();
+        : doCommit();
+        : triggerAfterCommit();
+        : triggerAfterCompletion();
+        : cleanupAfterCompletion();
+      endif
+    }
+
+    end
+
+    @enduml
+  #+end_src
+
+  #+HTML: <img src="https://i.loli.net/2019/09/29/MFxBCgJsDyLdpjA.png">
+
+  附：
+  + 和事务传播机制相关的代码位于 ~handleExistingTransaction~ 和 ~cleanupAfterCompletion~ 两个方法中
+  + ~triggerBeforeCompletion~ 存在一个参数表示调用它是位于提交还是回滚环境下
+
+* Mybatis & Redis 事务
+  Mybatis 提供了对 Spring 事务的集成，主要实现方式就是在执行数据库操作时，从 ~TransactionSynchronizationManager~ 中获取连接对象：
+  #+begin_src java
+    private void openConnection() throws SQLException {
+      this.connection = DataSourceUtils.getConnection(this.dataSource);
+      this.autoCommit = this.connection.getAutoCommit();
+      this.isConnectionTransactional = DataSourceUtils.isConnectionTransactional(this.connection, this.dataSource);
+    }
+  #+end_src
+
+  可以参考：[[https://my.oschina.net/fifadxj/blog/785621][mybatis-spring 事务处理机制分析 - fifadxj的个人空间 - OSCHINA]]
+
+  而 Redis 的情况有所区别，因为 Redis 的连接一般不在 Spring 事务的直接管理之中，因此，Redis 集成 Spring 事务的方式就是通过 ~trigger~ 来实现的。
+
+  在执行 Redis 操作时，如果发现自身处在事务上下文中，就获取一个新的连接，并将一个 ~TransactionSynchronization~ 放到 ~TransactionSynchronizationManager~.
+
+  这样，就可以在事务提交或回滚的时候通过 ~trigger~ 机制进行 Redis 的提交和回滚了。
+
+* 小结
+  总的来说，Spring 事务管理的核心逻辑和 JDBC 事务逻辑是一样的，只不过，Spring 事务在 JDBC 事务逻辑的基础上进行了进一步的扩展，主要包括：
+  1. 多线程环境下的事务管理支持
+  2. 事务传播机制
+  3. trigger 扩展
+
+  为了提供这些支持，Spring 事务管理的代码也变得不是那么容易阅读，但是理清主要逻辑后，还是比较容易理解的。
+
+  PS: 事务传播机制相关的源码没有看，但是这玩意我也还没有用过，留待以后吧！
+
