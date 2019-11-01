@@ -257,8 +257,6 @@
    + ~HttpSecurity~ 用于单个过滤器链配置和构建，标准过滤器大都可以通过 ~AbstractHttpConfigurer~ 实现类进行配置和构建
 
    大致的一个时序图如下：
-   #+HTML: <details><summary><i></i></summary>
-
    #+begin_src plantuml :exports none
      @startuml
      group WebSecurityConfiguration.springSecurityFilterChain()
@@ -311,8 +309,6 @@
      end
      @enduml
    #+end_src
-
-   #+HTML: </details>
 
    #+HTML: <img src="https://i.loli.net/2019/11/01/573eMSbcNmE9ALo.png">
 
