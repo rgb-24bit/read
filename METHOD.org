@@ -1,7 +1,0 @@
-#+TITLE:      阅读源码的方法
-
-* 2019-10-26
-  阅读源码无疑是需要一些技巧的，在过去的阅读源码的过程中，就因为方法的不得当导致源码阅读的收益并没有多少，反而，花费了大量的时间。
-
-  + [[https://github.com/freedombird9/how-to-read-source-code/blob/master/how-to-read-code.md][how-to-read-source-code/how-to-read-code.md at master · freedombird9/how-to-read-source-code]]
-    
