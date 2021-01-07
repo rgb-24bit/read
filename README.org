@@ -1,6 +1,0 @@
-#+TITLE: Read
-
-#+begin_quote
-read & record.
-#+end_quote
-
