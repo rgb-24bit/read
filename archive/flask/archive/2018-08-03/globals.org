@@ -1,0 +1,117 @@
+#+TITLE:      globals
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#模块作用][模块作用]]
+- [[#外部依赖][外部依赖]]
+- [[#全局对象][全局对象]]
+
+* 模块作用
+  这个模块定义了所有代理当前活动上下文的 *全局对象*.
+
+  简单看了一下， 确实发现了几个之前用过的 *全局对象*. 全局对象的安放一直是一个让人纠结的问题， 一般
+  来说我都是放到需要使用该全局对象的模块的顶部。
+
+  不过这里的几个全局对象应该是多个模块都有可能用到的， 单独放到一个模块中是一个好主意， 用的时候就不需要
+  回忆定义在哪个模块了。
+
+* 外部依赖
+  这个模块除了使用了 ~functools.partial~ 以外， 还使用了 ~werkzeug~ 这个第三方库的内容。
+
+  #+BEGIN_SRC python
+    from werkzeug.local import LocalStack, LocalProxy
+  #+END_SRC
+
+  才发现， ~werkzeug~ 是一个 ~WSGI~ 实用程序库。
+
+  由于协程在 Python Web 中广泛使用， 所有 threading loacl 不在满足需要， 因此， werkzeug 重新编写了自己的 Local.
+
+  在 ~werkzeug.local~ 中， 优先使用的是 ~greenlet~ 协程， 其次是 *线程 id*.
+
+  其中， 还定义了 ~__release_local__~ 函数用于清除本协程（线程）下所有数据。
+
+  + LocalStack :: 在本协程或线程中将数据以栈的形式存储， 通过封装 local 实现
+  + LocalProxy :: 作为一个 ~werkzeug local~ 的代理， 在这里的作用的理解需要一点额外的代码：
+                  #+BEGIN_SRC python
+                    class LocalProxy(object):
+                        __slots__ = ('__local', '__dict__', '__name__', '__wrapped__')
+
+                        def __init__(self, local, name=None):
+                            object.__setattr__(self, '_LocalProxy__local', local)
+                            object.__setattr__(self, '__name__', name)
+                            if callable(local) and not hasattr(local, '__release_local__'):
+                                # "local" is a callable that is not an instance of Local or
+                                # LocalManager: mark it as a wrapped function.
+                                object.__setattr__(self, '__wrapped__', local)
+
+                        def _get_current_object(self):
+                            """Return the current object.  This is useful if you want the real
+                            object behind the proxy at a time for performance reasons or because
+                            you want to pass the object into a different context.
+                            """
+                            if not hasattr(self.__local, '__release_local__'):
+                                return self.__local()
+                            try:
+                                return getattr(self.__local, self.__name__)
+                            except AttributeError:
+                                raise RuntimeError('no object bound to %s' % self.__name__)
+                  #+END_SRC
+
+                  这是 ~LocalProxy~ 的部分代码， 感觉构造函数开始就很骚， 设置属性 ~_LocalProxy__local~, 不就是 ~LocalProxy.__local~ 么......
+
+                  如果传入的 ~local~ 没有 ~__release_local__~ 属性， 那么 ~_get_current_object~ 会返回 ~self.local()~.
+
+* 全局对象
+  #+BEGIN_SRC python
+    _request_ctx_err_msg = '''...'''
+    _app_ctx_err_msg = '''...'''
+
+
+    def _lookup_req_object(name):
+        top = _request_ctx_stack.top
+        if top is None:
+            raise RuntimeError(_request_ctx_err_msg)
+        return getattr(top, name)
+
+
+    def _lookup_app_object(name):
+        top = _app_ctx_stack.top
+        if top is None:
+            raise RuntimeError(_app_ctx_err_msg)
+        return getattr(top, name)
+
+
+    def _find_app():
+        top = _app_ctx_stack.top
+        if top is None:
+            raise RuntimeError(_app_ctx_err_msg)
+        return top.app
+
+
+    # context locals
+    _request_ctx_stack = LocalStack()
+    _app_ctx_stack = LocalStack()
+    current_app = LocalProxy(_find_app)
+    request = LocalProxy(partial(_lookup_req_object, 'request'))
+    session = LocalProxy(partial(_lookup_req_object, 'session'))
+    g = LocalProxy(partial(_lookup_app_object, 'g'))
+  #+END_SRC
+
+  全局对象有：
+  + _request_ctx_stack :: 当前协程或线程的请求栈
+  + _app_ctx_stack :: 当前协程或线程的应用栈
+  + current_app :: 当前协程或线程的应用栈的顶部元素
+  + request :: 当前协程或线程的请求栈的顶部元素的 ~request~ 属性值
+  + session :: 当前协程或线程的请求栈的顶部元素的 ~session~ 属性值
+  + g :: 当前协程或线程的应用栈的顶部元素的 ~g~ 属性值
+
+  
+  很明显， 这些对象的行为受调用者所在协程或线程的影响。
+
+  这里引起了一个关于 ~flask session~ 的疑问：
+  + 在每一个请求的时候，session 数据是栈顶取出，那么不在这次请求的时候，session 存储在哪里呢？
+
+  还没看到相关源码， 但是通过这篇博客可以简单了解一下：
+  + [[https://windard.com/blog/2017/10/17/Flask-Session][flask 中的 cookie 和 session]]
+

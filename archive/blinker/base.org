@@ -1,0 +1,208 @@
+#+TITLE:      base
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#class-signal][class Signal]]
+- [[#剩下的代码][剩下的代码]]
+
+* class Signal
+  首先是一个比较特殊的 ~sender~:
+  #+BEGIN_SRC python
+    ANY = symbol('ANY')
+    ANY.__doc__ = 'Token for "any sender".'
+    ANY_ID = 0
+  #+END_SRC
+
+  假如未指定 ~sender~, 那么 ~ANY~ 将会作为默认的 ~sender~, 会发送任意信号。
+
+  然后是 ~Signal~ 类的 ~__init__~ 和 ~connect~ 方法：
+
+  #+BEGIN_SRC python
+    def __init__(self, doc=None):
+        ...
+
+    def connect(self, receiver, sender=ANY, weak=True):
+        ...
+  #+END_SRC
+
+  单独看 ~__init__~ 看不出来太多的内容， 但是通过 ~connect~ 大致就可以知道各个属性的作用了。
+
+  + ~receivers~ 信号接收器字典， 每次 ~connect~ 通过 ~receivers.setdefault~ 来设值。
+
+    键为接收器ID, 值为接收器的引用。
+
+    说起来 ~setdefault~ 还没用过， 文档是这样的：
+    #+BEGIN_EXAMPLE
+       D.setdefault(k[,d]) -> D.get(k,d), also set D[k]=d if k not in D
+    #+END_EXAMPLE
+
+  + ~_by_sender~ 发送器和接收器的一个映射， 一个发送器和多个不重复的接收器向映射
+    #+BEGIN_SRC python
+      self._by_sender[sender_id].add(receiver_id)
+    #+END_SRC
+
+  + ~_by_receiver~ 接收器和发送器的一个映射， 和 ~_by_sender~ 刚好相反
+    #+BEGIN_SRC python
+      self._by_receiver[receiver_id].add(sender_id)
+    #+END_SRC
+
+  + ~_weak_sender~ 发送器的弱引用字典
+
+  默认情况下， ~Signal~ 会保存发送器和接收器的 *弱引用*, 当引用的对象 GG 时会调用对应的清理函数：
+  #+BEGIN_SRC python
+    receiver_ref = reference(receiver, self._cleanup_receiver)
+    sender_ref = reference(sender, self._cleanup_sender)
+  #+END_SRC
+
+  ~connect~ 有这样一段：
+  #+BEGIN_SRC python
+     if receiver_connected.receivers and self is not receiver_connected:
+  #+END_SRC
+
+  然后， 我找了半天都没在前面找到 ~receivers_connected~, 属性也不可能啊， 差点怀疑人生.......
+
+  然后， 在后面找到了：
+  #+BEGIN_SRC python
+    receiver_connected = Signal("""\
+    Sent by a :class:`Signal` after a receiver connects.
+    :argument: the Signal that was connected to
+    :keyword receiver_arg: the connected receiver
+    :keyword sender_arg: the sender to connect to
+    :keyword weak_arg: true if the connection to receiver_arg is a weak reference
+    .. deprecated:: 1.2
+    As of 1.2, individual signals have their own private
+    :attr:`~Signal.receiver_connected` and
+    :attr:`~Signal.receiver_disconnected` signals with a slightly simplified
+    call signature.  This global signal is planned to be removed in 1.6.
+    """)
+  #+END_SRC
+
+  (ノ｀Д)ノ
+
+  还有方便 ~connect~ 的装饰器：
+  #+BEGIN_SRC python
+     def connect_via(self, sender, weak=False):
+         def decorator(fn):
+                self.connect(fn, sender, weak)
+                return fn
+        return decorator
+  #+END_SRC
+
+  这个功能很 ~nice~, 简单的 ~connect~ 可以像这样完成：
+  #+BEGIN_SRC python
+    start = Signal()
+
+    @start.connect_via(2)
+    def func(arg):
+        return arg
+  #+END_SRC
+
+  还是上下文管理器版的：
+  #+BEGIN_SRC python
+    @contextmanager
+    def connected_to(self, receiver, sender=ANY):
+        self.connect(receiver, sender=sender, weak=False)
+        try:
+            yield None
+        except:
+            self.disconnect(receiver)
+            raise
+        else:
+            self.disconnect(receiver)
+  #+END_SRC
+
+  先 ~connect~, 在 ~disconnect~, 挺好的。
+
+  很关键的方法 ~send~:
+  #+BEGIN_SRC python
+    def send(self, *sender, **kwargs):
+        if not self.receivers:
+            # Ensure correct signature even on no-op sends, disable with -O
+            # for lowest possible cost.
+            if __debug__ and sender and len(sender) > 1:
+                raise TypeError('send() accepts only one positional '
+                                'argument, %s given' % len(sender))
+            return []
+
+        # Using '*sender' rather than 'sender=None' allows 'sender' to be
+        # used as a keyword argument- i.e. it's an invisible name in the
+        # function signature.
+        if len(sender) == 0:
+            sender = None
+        elif len(sender) > 1:
+            raise TypeError('send() accepts only one positional argument, '
+                            '%s given' % len(sender))
+        else:
+            sender = sender[0]
+        return [(receiver, receiver(sender, **kwargs))
+                for receiver in self.receivers_for(sender)]
+  #+END_SRC
+
+  emmm, 为啥只允许有一个 ~sender~ 参数还是要定义为 ~*sender~ 呢 ？
+
+  如果没有 ~sender~ 可以在内部处理为 ~None~, 但是感觉还是手动定义为 ~None~ 不容易犯错。
+
+  说不定看到 ~*sender~ 顿时以为可以同时发送多个信号 @_@
+
+  其他代码就没啥了， 接收器执行并返回。
+
+  ~receivers_for~ 感觉还行：
+  #+BEGIN_SRC python
+    def receivers_for(self, sender):
+        """Iterate all live receivers listening for *sender*."""
+        # TODO: test receivers_for(ANY)
+        if self.receivers:
+            sender_id = hashable_identity(sender)
+            if sender_id in self._by_sender:
+                ids = (self._by_sender[ANY_ID] |
+                       self._by_sender[sender_id])
+            else:
+                ids = self._by_sender[ANY_ID].copy()
+            for receiver_id in ids:
+                receiver = self.receivers.get(receiver_id)
+                if receiver is None:
+                    continue
+                if isinstance(receiver, WeakTypes):
+                    strong = receiver()
+                    if strong is None:
+                        self._disconnect(receiver_id, ANY_ID)
+                        continue
+                    receiver = strong
+                yield receiver
+  #+END_SRC
+
+  看样子 ~ANY~ 这个发送器的接收器是必然执行的。
+
+  同时如果弱引用的对象已经 GG, 就会 ~disconnect~ 那个对象。
+
+  ~strong = receiver()~ 是在获取强引用。
+
+  感觉 ~_disconnect~ 的处理挺精细的：
+  #+BEGIN_SRC python
+    def _disconnect(self, receiver_id, sender_id):
+        if sender_id == ANY_ID:
+            if self._by_receiver.pop(receiver_id, False):
+                for bucket in self._by_sender.values():
+                    bucket.discard(receiver_id)
+            self.receivers.pop(receiver_id, None)
+        else:
+            self._by_sender[sender_id].discard(receiver_id)
+            self._by_receiver[receiver_id].discard(sender_id)
+  #+END_SRC
+
+  ~ANY~ 真是一个神奇的发送者。
+
+  剩下的代码：
+  + [[https://github.com/jek/blinker/blob/master/blinker/base.py#L344][code]]
+
+* 剩下的代码
+  + [[https://github.com/jek/blinker/blob/master/blinker/base.py#L422][剩下的代码]]
+
+  剩余部分的代码就比较好理解了， 主要是对 ~Signal~ 的一层封装， 更好使用。
+
+  平时使用的 ~signal~ 是这样的：
+  #+BEGIN_SRC python
+    signal = Namespace().signal
+  #+END_SRC
+

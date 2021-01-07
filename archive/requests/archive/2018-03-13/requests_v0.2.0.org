@@ -1,0 +1,201 @@
+#+TITLE:      requests v0.2.0 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 目录                                                    :TOC_4_gh:noexport:
+- [[#概览][概览]]
+- [[#corepy][core.py]]
+  - [[#class-_request][class _Request]]
+  - [[#class-response][class Response]]
+  - [[#class-request][class Request]]
+  - [[#class-authobject][class AuthObject]]
+  - [[#def-get-head-post-put-delete][def get, head, post, put, delete]]
+  - [[#def-add_autoauth][def add_autoauth]]
+  - [[#def-_get_autoauth][def _get_autoauth]]
+  - [[#other][other...]]
+- [[#收获][收获]]
+
+* 概览
+  =git co v0.2.0= 之后, 我看到了 =v0.2.0= 版本的 =requests=.
+
+  简单的看一下这个版本的代码. 可以看到, 文档生成工具是: =Sphinx=, 单元测试用的是标准库 =unittest=,
+  而核心代码部分也只使用了标准库: =urllib= 和 =urllib2=.
+  
+  支持的 =Python= 的版本是: =2.6=, =2.7=.
+
+* core.py
+  requests 这个版本的主要代码位于 =core.py= 这个文件中.
+
+  在第一个类之前, 定义了全局变量: =AUTOAUTHS = []=.
+  
+** class _Request
+   =_Request= 是定义的第一个类, 继承自 =urllib2.Request=.
+
+   _Request 的文档描述是: 对 urllib2.Request 对象的一个封装, 允许自定义 =method=.
+
+   对比 =urllib2.Request= 的构造函数, 可以看到 =_Request= 的构造函数多出来的参数:
+   =method=.
+
+   #+BEGIN_SRC python
+     class _Request(urllib2.Request):
+       """Hidden wrapper around the urllib2.Request object. Allows for manual
+       setting of HTTP methods.
+       """
+
+       def __init__(self, url,
+               data=None, headers={}, origin_req_host=None,
+               unverifiable=False, method=None):
+         urllib2.Request.__init__( self, url, data, headers, origin_req_host,
+                       unverifiable)
+           self.method = method
+
+       def get_method(self):
+         if self.method:
+           return self.method
+
+         return urllib2.Request.get_method(self)
+   #+END_SRC
+
+   同样, =_Request= 重构了 =get_method= 方法. 如果没有定义 =method=, 那么 =_Request= 和
+   =urllib2.Request= 的行为便没有什么区别.
+   
+** class Response
+   这个类并不是第二个定义的类, 但是在第二个类中用到了这个类, 所以先来浏览.
+
+   这个类的描述是: 每一个 =Request= 类都包含有一个 =Response= 对象.
+
+   这个类看起来是比较简单的, 但是使用了一个我没有使用过的魔法方法: =__repr__=.
+
+   魔法方法这东西, 一般也就看到书上有, 别人在用, 但是自己却还是没怎么用过的...
+
+   看了一下 =__repr__=, 和其相关的方法还有: =__str__=. 这两个方法的作用是用于让打印
+   对象的时候, 让输出信息更加友好.
+
+   打印重构了 =__repr__= 方法的对象的时候, 会打印 =__repr__= 的返回值.
+
+   打印重构了 =__str__= 方法的对象的时候, 只有使用 =print= 打印对象的时候才会打印
+   =__str__= 的返回值, 而直接打印不会.
+
+   #+BEGIN_SRC python
+     class Response(object):
+       """The :class:`Request` object. All :class:`Request` objects contain a
+       :class:`Request.response <response>` attribute, which is an instance of
+       this class.
+       """
+
+       def __init__(self):
+         self.content = None
+         self.status_code = None
+         self.headers = dict()
+
+       def __repr__(self):
+         try:
+           repr = '<Response [%s]>' % (self.status_code)
+         except:
+           repr = '<Response object>'
+         return repr
+   #+END_SRC
+   
+** class Request 
+   这个是整个模块最核心的类了吧...
+
+   在类的开始, 定义了一个保护变量: =_METHODS = ('GET', 'HEAD', 'PUT', 'POST', 'DELETE')=.
+   
+   同时, 重构了类的 =__setattr__= 方法, 对设置 =method= 的值做出了限制 !
+
+   这个方法真好, 之前自己写代码都是手动操作的, 没想到可以这样...(思维方式还是没有转变过来).
+   #+BEGIN_SRC python
+       def __setattr__(self, name, value):
+         if (name == 'method') and (value):
+           if not value in self._METHODS:
+             raise InvalidMethod()
+
+         object.__setattr__(self, name, value)
+
+   #+END_SRC
+
+   + *send* 方法:
+     
+     顾名思义, 用于发送请求的方法.
+
+     在方法的开头, 调用了 =_checks= 方法来检查 =url= 是否存在. 额, 我自己之前都是直接在方法里面
+     检查的...
+
+     其他的代码的话, 除了功能的实现, 整体给人的感觉就是清楚.
+
+     功能的实现看起来挺简单的, 但是我知道如果换现在的我来的话, 估计代码看起来就是混乱了.
+
+     连续的 =if=, =elif=, =else= 语句我之前一直是直接对凑在一起的. 但是现在看来, 适当的空行也不错 ?
+     
+     还有便是对返回值的处理吧, 如果按照我的做法的话, 整个 =send= 方法这么大, 五个请求类型的处理,
+     返回值各有不同. 如果是我来, 估计就不是一个方法能够解决的问题了.
+
+     而 =Request= 对返回值的处理方式是, 保存到 =Response= 对象的 *属性* 中. =send= 方法只返回是否成功即可.
+
+     这种操作方式不就是 =xxx.xxx().xxx= 吗 ?
+
+     经常在用, 却没想到那样写...(思维方式的重要性)
+
+   然后, 在 =send= 方法结束后, 这个类便结束了.
+
+** class AuthObject
+   这个类没什么说的, 只有 =username= 和 =password= 两个属性.
+
+** def get, head, post, put, delete
+   这几个函数没得说....
+
+   感觉这样的做法像是某种设计模式 ?
+
+   按照我自己的做法来写的话, 这几个函数估计会整合到 =Request= 类中或单独定义一个类, 
+   然后创建这个类的实例来调用这些方法...
+
+   现在看来, 这样的做法够简洁 !
+
+** def add_autoauth
+   嗯, 一个很简单的函数, 操作全局变量 =AUTOAUTHS=.
+
+   =global AUTOAUTHS=, 我之前定义全局变量后使用还没注意到这一点...
+
+   的亏没出错哦233
+
+** def _get_autoauth
+   嗯, 这个函数里的循环让我很在意.
+
+   原来循环可以这样写:
+   : for (autoauth_url, auth) in AUTOAUTHS:
+
+   =AUTOAUTHS= 里的对象是元组, 按照我自己的做法来写的话, 就只有一个对象, 在通过下标来访问了...
+
+** other...
+   定义了四个类型的异常, 感觉这样是要方便一些...
+
+* 收获
+  + *思维方式*: 目前我很想做到的一件事便是转变编写 =Python= 代码时的思维方式.
+    由于之前主要学习的还是 =C语言=, 两者的思维方式还是有很大区别的. =Python=
+    中一切都是对象. 这一点知道但是却不怎么用. 这一份代码带来了一些思维方式上的
+    启发. 当然, 还不够...
+  
+  + *类的继承*: 目前写过的小程序中, 还没有多少用到过类的继承呢, 更不要说继承标准库中
+    的类呢...
+
+    继承类的同时, 添加新的特性而又保持和父类行为的一致性, good !!!
+
+  + *几个魔法方法*: 额, 平时也就用用 =__init__=...
+
+    现在才发现, 魔法方法这东西是个好东西.
+
+  + *层次结构*: 不说了, 自己写代码的时候, 代码量少还好说, 多了, 自己都感觉乱...
+
+    而这一份代码, 阅读的时候是真的很清晰啊 !
+
+    包括使用, 直接简单 !
+
+  + *全局变量的使用*: =gloabl= 这个关键字貌似还没用过...
+
+    之前写的程序没有出问题也是够好了...
+
+    细节, 细节...
+
+  + *设计模式*: 我不知道这里有没有用到设计模式, 但是我感觉也可以准备学习一下了.
+    
+   

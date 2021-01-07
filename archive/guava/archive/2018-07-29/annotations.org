@@ -1,0 +1,18 @@
+#+TITLE:      annotations
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#annotations][annotations]]
+
+* annotations
+  ~Java annotations~ 的教程网上也有不少， 但不少教程都是让人越看越糊涂。
+
+  最后， 感觉还是官方教程直接点： [[https://docs.oracle.com/javase/tutorial/java/annotations/index.html][Lesson: Annotations]].
+
+  然后在来看 ~guava~ 中定义的四个 ~annotations~, 其实它们的名称已经说明了一切：
+  ~Beta~, ~GwtCompatible~, ~GwtIncompatible~, ~VisibleForTesting~.
+
+  ~Gwt~ 应该是 ~Google Web Toolkit~ 的缩写。
+
+  然后也就没啥了 @_@

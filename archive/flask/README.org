@@ -1,0 +1,17 @@
+#+TITLE:      flask 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  ~Flask~ 应该是目前最受欢迎的 ~Python web~ 框架了， 轻量级、 易扩展。
+
+  + 源码链接： [[https://github.com/pallets/flask/tree/1.0][Flask 1.0]]
+
+* 目前进度
+
+* 相关链接
+  + [[https://github.com/pallets/werkzeug][Werkzeug - The comprehensive WSGI web application library]]
+  + [[https://github.com/pallets/jinja][Jinja2 - The Jinja2 template engine]]
+  + [[https://github.com/pallets/itsdangerous][itsdangerous - Various helpers to pass trusted data to untrusted environments]]
+  + [[https://github.com/pallets/click][click - Python composable command line utility]]
+

@@ -1,0 +1,271 @@
+#+TITLE:      collections
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#import][import]]
+- [[#userdict][UserDict]]
+- [[#userlist][UserList]]
+- [[#userstring][UserString]]
+- [[#module__getattr__][module.__getattr__]]
+- [[#ordereddict][OrderedDict]]
+- [[#chainmap][ChainMap]]
+- [[#other][Other]]
+- [[#相关链接][相关链接]]
+
+* import
+  #+BEGIN_SRC python
+    ...
+    # https://docs.python.org/3/library/operator.html#operator.itemgetter
+    # def itemgetter(*items):
+    #     if len(items) == 1:
+    #         item = items[0]
+    #         def g(obj):
+    #             return obj[item]
+    #     else:
+    #         def g(obj):
+    #             return tuple(obj[item] for item in items)
+    #     return g
+    from operator import itemgetter as _itemgetter, eq as _eq
+
+    ...
+
+    # https://docs.python.org/3.7/library/keyword.html
+    # 可以用于判断一个字符串是否为关键字
+    from keyword import iskeyword as _iskeyword
+
+    ...
+
+    # https://docs.python.org/3/library/reprlib.html#module-reprlib
+    # repr() 的替代实现
+    from reprlib import recursive_repr as _recursive_repr
+
+    ...
+  #+END_SRC
+
+  Python 各种库是真滴多......
+
+* UserDict
+  UserDict 和默认的 Dict 之间还是存在一些区别的，之前一直没什么感觉，直到这一段代码的出现：
+  #+BEGIN_SRC python
+    class NestedDict(dict):
+        """Automated nested dictionary.
+
+        >>> nd = NestedDict()
+        >>> nd['a']['b']['c'] = 1
+        >>> nd
+        {'a': {'b': {'c': 1}}}
+        """
+        def __getitem__(self, key):
+            return self.setdefault(key, self.__class__())
+  #+END_SRC
+
+  上面这段代码中，如果继承的是 UserDict, 就会陷入无限递归。
+  
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L999][class UserDict(_collections_abc.MutableMapping)]]
+
+  说起来，UserDict 的本身的源码还是很简单的，上面问题的来源还是需要看一下父类的代码。
+
+  哈，问题就在这里：
+  #+BEGIN_SRC python
+    def setdefault(self, key, default=None):
+        'D.setdefault(k[,d]) -> D.get(k,d), also set D[k]=d if k not in D'
+        try:
+            return self[key]
+        except KeyError:
+            self[key] = default
+        return default
+  #+END_SRC
+
+  感觉 UserDict 可以覆盖 setdefault 方法和 get 方法：
+  #+BEGIN_SRC python
+    def get(self, key, default=None):
+        'D.get(k[,d]) -> D[k] if k in D, else d.  d defaults to None.'
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    # ------------------------------------------------------------------------------
+
+    def setdefault(self, key, default=None):
+        return self.data.setdefault(key, default)
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
+  #+END_SRC
+
+  或者，编写 UserDict 的子类的时候注意......
+  #+BEGIN_SRC python
+    class NestedDict(UserDict):
+        def __getitem__(self, key):
+            return self.data.setdefault(key, self.__class__())
+  #+END_SRC
+
+  好吧，官方文档还真有提示： [[https://docs.python.org/3/library/collections.html#collections.UserDict][class collections.UserDict({initialdata})]]
+
+  似乎，还有其他的选择：
+  #+BEGIN_SRC python
+    class NestedDict(UserDict):
+        def __missing__(self, key):
+            value = self.__class__()
+            self.data[key] = value
+            return value
+  #+END_SRC
+
+* UserList
+  UserList 和 UserDict 的实现方式差不多，比较有趣的是几个方法的实现，反正看到源码后瞬间幻灭了：
+  #+BEGIN_SRC python
+    def append(self, value):
+        'S.append(value) -- append value to the end of the sequence'
+        self.insert(len(self), value)
+
+    def clear(self):
+        'S.clear() -> None -- remove all items from S'
+        try:
+            while True:
+                self.pop()
+        except IndexError:
+            pass
+
+    def extend(self, values):
+        'S.extend(iterable) -- extend sequence by appending elements from the iterable'
+        if values is self:
+            values = list(values)
+        for v in values:
+            self.append(v)
+  #+END_SRC
+
+  这几个是 ~MutableSequence~ 中的实现，UserList 中这几个方法都用 data 字段的方法实现。
+
+  不过这个实现还是可以看一下，这种用法可以：
+  #+BEGIN_SRC python
+    def count(self, value):
+        'S.count(value) -> integer -- return number of occurrences of value'
+        return sum(1 for v in self if v is value or v == value)
+  #+END_SRC
+
+  值得一提的是，UserList 内部所有方法的实现都是调用 data 字段的方法，为什么，UserDict 会有那么两个方法不是这样的呢？
+
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L1066][class UserList(_collections_abc.MutableSequence)]]
+
+* UserString
+  UserString 就没什么好说的了，源码简单而又直白：
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L1139][class UserString(_collections_abc.Sequence)]]
+
+  所以说，为什么，唯独 UserDict 存在两个方法不是通过调用 data 字段的方法实现呢？
+
+* module.__getattr__
+  突然发现，最上面的 ~__getattr__~ 是给模块定义的：
+  #+BEGIN_SRC python
+    def __getattr__(name):
+        # For backwards compatibility, continue to make the collections ABCs
+        # through Python 3.6 available through the collections module.
+        # Note, no new collections ABCs were added in Python 3.7
+        if name in _collections_abc.__all__:
+            obj = getattr(_collections_abc, name)
+            import warnings
+            warnings.warn("Using or importing the ABCs from 'collections' instead "
+                          "of from 'collections.abc' is deprecated, "
+                          "and in 3.8 it will stop working",
+                          DeprecationWarning, stacklevel=2)
+            globals()[name] = obj
+            return obj
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+  #+END_SRC
+
+  原来还有这种操作 @_@
+
+* OrderedDict
+  通过 OrderedDict 的源码，我知道了一直好奇的 ~View~ 的实现方式，真的厉害：
+  #+BEGIN_SRC python
+    class MappingView(Sized):
+
+        __slots__ = '_mapping',
+
+        def __init__(self, mapping):
+            self._mapping = mapping
+
+        def __len__(self):
+            return len(self._mapping)
+
+        def __repr__(self):
+            return '{0.__class__.__name__}({0._mapping!r})'.format(self)
+
+    class KeysView(MappingView, Set):
+
+        __slots__ = ()
+
+        @classmethod
+        def _from_iterable(self, it):
+            return set(it)
+
+        def __contains__(self, key):
+            return key in self._mapping
+
+        def __iter__(self):
+            yield from self._mapping
+
+    class _OrderedDictKeysView(_collections_abc.KeysView):
+
+        def __reversed__(self):
+            yield from reversed(self._mapping)
+
+    def keys(self):
+        "D.keys() -> a set-like object providing a view on D's keys"
+        return _OrderedDictKeysView(self)
+  #+END_SRC
+
+  View 对象内部直接包含了 Dict 对象的引用，通过一层封装的方式，限制了对 Dict 的操作，
+  但是达到了可以通过操作 View 对象同步操作 Dict 对象的功能。
+
+  相较于原有的实现，需要添加的代码并不是很多，但又很巧妙运用了语言特性，真棒！
+
+  另外，就是固定顺序的实现是通过在内部维护一个 *双向循环链表* 完成的：
+  #+BEGIN_SRC python
+    class _Link(object):
+        __slots__ = 'prev', 'next', 'key', '__weakref__'
+  #+END_SRC
+
+  这个 *双向循环链表* 是真的精简，当然，代码看起来有点绕，毕竟这种数据结构很少接触。
+
+  嗯，还有一个保存各个节点引用的 *哈希表*.
+
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py#L81][class OrderedDict(dict):]]
+
+  emmm, 还以为会是一个 ~list~ 呢......
+
+* ChainMap
+  ChainMap 的实现方式和预期的也不太一样，当然，ChainMap 也没怎么用过......
+
+  #+BEGIN_SRC python
+    class ChainMap(_collections_abc.MutableMapping):
+        def __init__(self, *maps):
+            self.maps = list(maps) or [{}]          # always at least one map
+
+        def __missing__(self, key):
+            raise KeyError(key)
+
+        def __getitem__(self, key):
+            for mapping in self.maps:
+                try:
+                    return mapping[key]             # can't use 'key in mapping' with defaultdict
+                except KeyError:
+                    pass
+            return self.__missing__(key)            # support subclasses that define __missing__
+  #+END_SRC
+
+  还以为是把各个 map 合并到一个 map 中呢。
+
+* Other
+  剩下的 namedtuple 和 Counter 的源码瞄了几年，感觉没啥看头。
+
+  deque 呢，又是 C 代码......
+
+  就这样了。
+
+* 相关链接
+  + [[https://docs.python.org/3/library/collections.html][collections — Container datatypes]]
+  + [[https://github.com/python/cpython/blob/master/Lib/collections/__init__.py][collections - source code]]
+  + [[https://github.com/python/cpython/blob/master/Lib/_collections_abc.py][_collections_abc source code]]
+  + [[https://github.com/python/cpython/blob/master/Modules/_collectionsmodule.c][_collectionsmodule C source code]]

@@ -1,0 +1,28 @@
+#+TITLE:      flasky 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  ~flasky~ 是 ~Flask Web Development~ 的源代码示例， 提供了一个很好的 ~flask~ 项目的模板。
+
+  + 源码链接： [[https://github.com/miguelgrinberg/flasky][flasky]]
+  
+  ~flasky~ 的作者 [[https://github.com/miguelgrinberg][miguelgrinberg]] 还有一篇很好的 ~flask~ 的教程： [[https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-i-hello-world][The Flask Mega-Tutorial]]
+
+* 目前进度
+  + [[file:chapter-1.org][Chapter 1]] - /None./
+  + [[file:chapter-2.org][Chapter 2]] - /flask, flask_script./
+  + [[file:chapter-3.org][Chapter 3]] - /flask(Jinja2), flask_bootstrap, flask_moment./
+  + [[file:chapter-4.org][Chapter 4]] - /flask, flask_wtf./
+  + [[file:chapter-5.org][Chapter 5]] - /flask_sqlalchemy, flask_migrate./
+  + [[file:chapter-6.org][Chapter 6]] - /flask_mail./
+  + [[file:chapter-7.org][Chapter 7]] - /flask(Blueprint)./
+
+* 相关链接
+  + [[https://github.com/pallets/flask][flask]] - *Flask* 源码链接
+  + [[https://github.com/mitsuhiko/flask-sqlalchemy][flask-sqlalchemy]] - 将 *SQLAlchemy* 支持添加到 *Flask*
+  + [[https://github.com/miguelgrinberg/Flask-Migrate][flask-migrate]] - 数据库迁移
+
+  如何部署 ~flask~ 也是一个问题：
+  + [[https://segmentfault.com/a/1190000008909201][在 Windows 平台使用 IIS 部署 Flask 网站]]
+

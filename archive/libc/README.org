@@ -1,0 +1,15 @@
+#+TITLE:      libc 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  以 *C 标准库* 一书上的源码为主，必要时参考 ~glibc~ 源码进行的 ~libc~ 源码阅读。
+
+* 目前进度
+  + [[file:stdlib.org][sdtlib]] - /standard library/
+  + [[file:stdio.org][stdio]] - /standard io/
+
+* 相关链接
+  + [[https://book.douban.com/subject/3775842/][C 标准库]]
+  + [[http://repo.or.cz/glibc.git][glibc]]
+

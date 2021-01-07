@@ -1,0 +1,11 @@
+#+TITLE:      requests 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  ~requests~ 是一个很 ~Pythonic~ 的第三方库， 可以用于获取网络资源。
+
+* 目前进度
+    
+* 相关链接
+  + [[https://github.com/requests/requests/tree/master][requests 源码链接]]

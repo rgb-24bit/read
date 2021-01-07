@@ -1,0 +1,239 @@
+#+TITLE:      flyweight
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#文档][文档]]
+- [[#代码][代码]]
+- [[#输出][输出]]
+- [[#理解][理解]]
+
+* 文档
+  #+BEGIN_SRC python
+    """
+    *References:
+    http://codesnipers.com/?q=python-flyweights
+
+    *TL;DR80
+    Minimizes memory usage by sharing data with other similar objects.
+    """
+  #+END_SRC
+  
+  *References*:
+  + http://codesnipers.com/?q=python-flyweights
+
+* 代码
+  #+BEGIN_SRC python
+    import weakref
+
+
+    class FlyweightMeta(type):
+
+        def __new__(mcs, name, parents, dct):
+            """
+            Set up object pool
+
+            :param name: class name
+            :param parents: class parents
+            :param dct: dict: includes class attributes, class methods,
+            static methods, etc
+            :return: new class
+            """
+            dct['pool'] = weakref.WeakValueDictionary()
+            return super(FlyweightMeta, mcs).__new__(mcs, name, parents, dct)
+
+        @staticmethod
+        def _serialize_params(cls, *args, **kwargs):
+            """
+            Serialize input parameters to a key.
+            Simple implementation is just to serialize it as a string
+            """
+            args_list = list(map(str, args))
+            args_list.extend([str(kwargs), cls.__name__])
+            key = ''.join(args_list)
+            return key
+
+        def __call__(cls, *args, **kwargs):
+            key = FlyweightMeta._serialize_params(cls, *args, **kwargs)
+            pool = getattr(cls, 'pool', {})
+
+            instance = pool.get(key)
+            if instance is None:
+                instance = super(FlyweightMeta, cls).__call__(*args, **kwargs)
+                pool[key] = instance
+            return instance
+
+
+    class Card(object):
+
+        """The object pool. Has builtin reference counting"""
+        _CardPool = weakref.WeakValueDictionary()
+
+        """Flyweight implementation. If the object exists in the
+        pool just return it (instead of creating a new one)"""
+        def __new__(cls, value, suit):
+            obj = Card._CardPool.get(value + suit)
+            if not obj:
+                obj = object.__new__(cls)
+                Card._CardPool[value + suit] = obj
+                obj.value, obj.suit = value, suit
+            return obj
+
+        # def __init__(self, value, suit):
+        #     self.value, self.suit = value, suit
+
+        def __repr__(self):
+            return "<Card: %s%s>" % (self.value, self.suit)
+
+
+    def with_metaclass(meta, *bases):
+        """ Provide python cross-version metaclass compatibility. """
+        return meta("NewBase", bases, {})
+
+
+    class Card2(with_metaclass(FlyweightMeta)):
+
+        def __init__(self, *args, **kwargs):
+            # print('Init {}: {}'.format(self.__class__, (args, kwargs)))
+            pass
+
+
+    if __name__ == '__main__':
+        # comment __new__ and uncomment __init__ to see the difference
+        c1 = Card('9', 'h')
+        c2 = Card('9', 'h')
+        print(c1, c2)
+        print(c1 == c2, c1 is c2)
+        print(id(c1), id(c2))
+
+        c1.temp = None
+        c3 = Card('9', 'h')
+        print(hasattr(c3, 'temp'))
+        c1 = c2 = c3 = None
+        c3 = Card('9', 'h')
+        print(hasattr(c3, 'temp'))
+
+        # Tests with metaclass
+        instances_pool = getattr(Card2, 'pool')
+        cm1 = Card2('10', 'h', a=1)
+        cm2 = Card2('10', 'h', a=1)
+        cm3 = Card2('10', 'h', a=2)
+
+        assert (cm1 == cm2) != cm3
+        assert (cm1 is cm2) is not cm3
+        assert len(instances_pool) == 2
+
+        del cm1
+        assert len(instances_pool) == 2
+
+        del cm2
+        assert len(instances_pool) == 1
+
+        del cm3
+        assert len(instances_pool) == 0
+  #+END_SRC
+
+* 输出
+  #+BEGIN_EXAMPLE
+    ### OUTPUT ###
+    # (<Card: 9h>, <Card: 9h>)
+    # (True, True)
+    # (31903856, 31903856)
+    # True
+    # False
+  #+END_EXAMPLE
+
+* 理解
+  *享元模式* 使用共享物件， 用来尽可能减少内存使用量以及分享资讯给尽可能多的相似物件。
+
+  适合用于当大量物件只是重复因而导致无法令人接受的使用大量内存。
+
+  示例代码应该是我目前看过的所有 ~Python~ 代码中最复杂的了， 语法特性的使用上。
+
+  弱引用， 元类， 类等之间的关系绕来绕去......
+
+  来理解一波：
+  + 首先是元类 ~FlyweightMeta~, 通过这个元类创建类时， 会为创建的类设置属性 ~pool~.
+
+    这个属性是一个 *弱引用字典*.
+
+    当这个字典的值的 *强引用* 数为 0 时， 就会从字典中删除这个弱引用。
+
+  + 然后是元类的 ~__call__~ 方法， 第一眼还没看明白， 仔细一想， *类* 是 *元类* 的实例， 那么
+    *元类* 的 ~__call__~ 方法调用不就是在创建 *类实例* 吗 ！
+
+    可以看到， ~__call__~ 方法中对构造实例的 *参数* 进行了判断， 如果这个参数在 *弱引用字典*
+    中存在， 说明用这个参数构建的实例依然存在。
+
+    因此返回那个实例， 否则构造新的实例。
+
+  + 然后是类 ~Card~, 这个类的 ~__new__~ 方法也做出了类似前面的 ~__call__~ 的判断。
+
+    保证同一参数构造的实例唯一。
+
+  这算是 ~Python~ 的奇淫技巧了吧 QAQ
+
+  key = (args, tuple(keywords.items()))
+  #+BEGIN_SRC python
+    # -*- coding: utf-8 -*-
+
+    import weakref
+
+    from six import with_metaclass
+
+
+    class FlyweightMeta(type):
+        def __new__(cls, name, bases, attrs):
+            """Set up object pool.
+
+            Args:
+                cls: FlyweightMeta instance - class
+                name: class name
+                bases: class parents
+                attrs: includes class attributes, class methods, static methods, etc
+
+            Returns:
+                new class
+            """
+            attrs['pool'] = weakref.WeakValueDictionary()
+            return super(FlyweightMeta, cls).__new__(cls, name, bases, attrs)
+
+        def __call__(cls, *args, **kwargs):
+            key = (args, tuple(kwargs.items()))
+            pool = getattr(cls, 'pool', dict())
+
+            instance = pool.get(key)
+            if instance is None:
+                instance = super(FlyweightMeta, cls).__call__(*args, **kwargs)
+                pool[key] = instance
+            return instance
+
+
+    class Card(with_metaclass(FlyweightMeta, object)):
+        def __init__(self, value, suit):
+            self.value = value
+            self.suit = suit
+
+
+    if __name__ == '__main__':
+        c1 = Card('9', 'h')
+        c2 = Card('9', 'h')
+        c3 = Card('8', 'h')
+
+        print(c1.value)
+        print(c2.value)
+        print(c3.value)
+
+        print(c1 is c2)
+        print(c1 is c3)
+  #+END_SRC
+
+  执行结果：
+  #+BEGIN_EXAMPLE
+    9
+    9
+    8
+    True
+    False
+  #+END_EXAMPLE
+

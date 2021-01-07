@@ -1,0 +1,211 @@
+#+TITLE:      facade
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#文档][文档]]
+- [[#代码][代码]]
+- [[#输出][输出]]
+- [[#理解][理解]]
+
+* 文档
+  #+BEGIN_SRC python
+    """
+    *What is this pattern about?
+    The Facade pattern is a way to provide a simpler unified interface to
+    a more complex system. It provides an easier way to access functions
+    of the underlying system by providing a single entry point.
+    This kind of abstraction is seen in many real life situations. For
+    example, we can turn on a computer by just pressing a button, but in
+    fact there are many procedures and operations done when that happens
+    (e.g., loading programs from disk to memory). In this case, the button
+    serves as an unified interface to all the underlying procedures to
+    turn on a computer.
+
+    *What does this example do?
+    The code defines three classes (TC1, TC2, TC3) that represent complex
+    parts to be tested. Instead of testing each class separately, the
+    TestRunner class acts as the facade to run all tests with only one
+    call to the method runAll. By doing that, the client part only needs
+    to instantiate the class TestRunner and call the runAll method.
+    As seen in the example, the interface provided by the Facade pattern
+    is independent from the underlying implementation. Since the client
+    just calls the runAll method, we can modify the classes TC1, TC2 or
+    TC3 without impact on the way the client uses the system.
+
+    *Where is the pattern used practically?
+    This pattern can be seen in the Python standard library when we use
+    the isdir function. Although a user simply uses this function to know
+    whether a path refers to a directory, the system makes a few
+    operations and calls other modules (e.g., os.stat) to give the result.
+
+    *References:
+    https://sourcemaking.com/design_patterns/facade
+    https://fkromer.github.io/python-pattern-references/design/#facade
+    http://python-3-patterns-idioms-test.readthedocs.io/en/latest/ChangeInterface.html#facade
+
+    *TL;DR80
+    Provides a simpler unified interface to a complex system.
+    """
+  #+END_SRC
+  
+  *References*:
+  + https://sourcemaking.com/design_patterns/facade
+  + https://fkromer.github.io/python-pattern-references/design/#facade
+  + http://python-3-patterns-idioms-test.readthedocs.io/en/latest/ChangeInterface.html#facade
+
+* 代码
+  #+BEGIN_SRC python
+    from __future__ import print_function
+    import time
+
+    SLEEP = 0.1
+
+
+    # Complex Parts
+    class TC1:
+
+        def run(self):
+            print(u"###### In Test 1 ######")
+            time.sleep(SLEEP)
+            print(u"Setting up")
+            time.sleep(SLEEP)
+            print(u"Running test")
+            time.sleep(SLEEP)
+            print(u"Tearing down")
+            time.sleep(SLEEP)
+            print(u"Test Finished\n")
+
+
+    class TC2:
+
+        def run(self):
+            print(u"###### In Test 2 ######")
+            time.sleep(SLEEP)
+            print(u"Setting up")
+            time.sleep(SLEEP)
+            print(u"Running test")
+            time.sleep(SLEEP)
+            print(u"Tearing down")
+            time.sleep(SLEEP)
+            print(u"Test Finished\n")
+
+
+    class TC3:
+
+        def run(self):
+            print(u"###### In Test 3 ######")
+            time.sleep(SLEEP)
+            print(u"Setting up")
+            time.sleep(SLEEP)
+            print(u"Running test")
+            time.sleep(SLEEP)
+            print(u"Tearing down")
+            time.sleep(SLEEP)
+            print(u"Test Finished\n")
+
+
+    # Facade
+    class TestRunner:
+
+        def __init__(self):
+            self.tc1 = TC1()
+            self.tc2 = TC2()
+            self.tc3 = TC3()
+            self.tests = [self.tc1, self.tc2, self.tc3]
+
+        def runAll(self):
+            [i.run() for i in self.tests]
+
+
+    # Client
+    if __name__ == '__main__':
+        testrunner = TestRunner()
+        testrunner.runAll()
+  #+END_SRC
+
+* 输出
+  #+BEGIN_EXAMPLE
+    ### OUTPUT ###
+    # ###### In Test 1 ######
+    # Setting up
+    # Running test
+    # Tearing down
+    # Test Finished
+    #
+    # ###### In Test 2 ######
+    # Setting up
+    # Running test
+    # Tearing down
+    # Test Finished
+    #
+    # ###### In Test 3 ######
+    # Setting up
+    # Running test
+    # Tearing down
+    # Test Finished
+    #
+  #+END_EXAMPLE
+
+* 理解
+  *外观模式* 很好理解， 它为子系统中的一组接口提供一个统一的高层接口， 使得子系统更容易使用。
+
+  示例代码的文档中举得一个例子就是电脑的启动， 我们按下按钮启动电脑， 但是电脑内部却执行了很多的动作。
+
+  这样一来， 使用者不需要了解关系电脑是如何启动的， 只需要按一下按钮。
+
+  #+BEGIN_SRC python
+    # -*- coding: utf-8 -*-
+
+    # Complex parts
+
+    class CPU(object):
+        def freeze(self):
+            print('CPU: freeze')
+
+        def jump(self, position):
+            print('CPU: jump')
+
+        def execute(self):
+            print('CPU: execute')
+
+
+    class Memory(object):
+        def load(self, position, data):
+            print('Memory: load')
+
+
+    class HardDrive(object):
+        def read(self, lba, size):
+            print('HardDrive: read')
+
+
+    # Facade
+
+    class Computer(object):
+        def __init__(self):
+            self.cpu = CPU()
+            self.memory = Memory()
+            self.hard_drive = HardDrive()
+
+        def start_computer(self):
+            self.cpu.freeze()
+            self.memory.load(None, self.hard_drive.read(None, None))
+            self.cpu.jump(None)
+            self.cpu.execute()
+
+
+    if __name__ == '__main__':
+        facade = Computer()
+        facade.start_computer()
+  #+END_SRC
+
+  执行结果：
+  #+BEGIN_EXAMPLE
+    CPU: freeze
+    HardDrive: read
+    Memory: load
+    CPU: jump
+    CPU: execute
+  #+END_EXAMPLE
+

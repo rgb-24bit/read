@@ -1,0 +1,303 @@
+#+TITLE:      mvc
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#文档][文档]]
+- [[#代码][代码]]
+- [[#输出][输出]]
+- [[#理解][理解]]
+
+* 文档
+  #+BEGIN_SRC python
+    """
+    *TL;DR80
+    Separates data in GUIs from the ways it is presented, and accepted.
+    """
+  #+END_SRC
+  
+* 代码
+  #+BEGIN_SRC python
+    class Model(object):
+
+        def __iter__(self):
+            raise NotImplementedError
+
+        def get(self, item):
+            """Returns an object with a .items() call method
+            that iterates over key,value pairs of its information."""
+            raise NotImplementedError
+
+        @property
+        def item_type(self):
+            raise NotImplementedError
+
+
+    class ProductModel(Model):
+
+        class Price(float):
+            """A polymorphic way to pass a float with a particular
+            __str__ functionality."""
+
+            def __str__(self):
+                first_digits_str = str(round(self, 2))
+                try:
+                    dot_location = first_digits_str.index('.')
+                except ValueError:
+                    return (first_digits_str + '.00')
+                else:
+                    return (first_digits_str +
+                            '0' * (3 + dot_location - len(first_digits_str)))
+
+        products = {
+            'milk': {'price': Price(1.50), 'quantity': 10},
+            'eggs': {'price': Price(0.20), 'quantity': 100},
+            'cheese': {'price': Price(2.00), 'quantity': 10}
+        }
+
+        item_type = 'product'
+
+        def __iter__(self):
+            for item in self.products:
+                yield item
+
+        def get(self, product):
+            try:
+                return self.products[product]
+            except KeyError as e:
+                raise KeyError((str(e) + " not in the model's item list."))
+
+
+    class View(object):
+
+        def show_item_list(self, item_type, item_list):
+            raise NotImplementedError
+
+        def show_item_information(self, item_type, item_name, item_info):
+            """Will look for item information by iterating over key,value pairs
+            yielded by item_info.items()"""
+            raise NotImplementedError
+
+        def item_not_found(self, item_type, item_name):
+            raise NotImplementedError
+
+
+    class ConsoleView(View):
+
+        def show_item_list(self, item_type, item_list):
+            print(item_type.upper() + ' LIST:')
+            for item in item_list:
+                print(item)
+            print('')
+
+        @staticmethod
+        def capitalizer(string):
+            return string[0].upper() + string[1:].lower()
+
+        def show_item_information(self, item_type, item_name, item_info):
+            print(item_type.upper() + ' INFORMATION:')
+            printout = 'Name: %s' % item_name
+            for key, value in item_info.items():
+                printout += (', ' + self.capitalizer(str(key)) + ': ' + str(value))
+            printout += '\n'
+            print(printout)
+
+        def item_not_found(self, item_type, item_name):
+            print('That %s "%s" does not exist in the records' %
+                  (item_type, item_name))
+
+
+    class Controller(object):
+
+        def __init__(self, model, view):
+            self.model = model
+            self.view = view
+
+        def show_items(self):
+            items = list(self.model)
+            item_type = self.model.item_type
+            self.view.show_item_list(item_type, items)
+
+        def show_item_information(self, item_name):
+            try:
+                item_info = self.model.get(item_name)
+            except:
+                item_type = self.model.item_type
+                self.view.item_not_found(item_type, item_name)
+            else:
+                item_type = self.model.item_type
+                self.view.show_item_information(item_type, item_name, item_info)
+
+
+    if __name__ == '__main__':
+
+        model = ProductModel()
+        view = ConsoleView()
+        controller = Controller(model, view)
+        controller.show_items()
+        controller.show_item_information('cheese')
+        controller.show_item_information('eggs')
+        controller.show_item_information('milk')
+        controller.show_item_information('arepas')
+  #+END_SRC
+
+* 输出
+  #+BEGIN_EXAMPLE
+    ### OUTPUT ###
+    # PRODUCT LIST:
+    # cheese
+    # eggs
+    # milk
+    #
+    # PRODUCT INFORMATION:
+    # Name: Cheese, Price: 2.00, Quantity: 10
+    #
+    # PRODUCT INFORMATION:
+    # Name: Eggs, Price: 0.20, Quantity: 100
+    #
+    # PRODUCT INFORMATION:
+    # Name: Milk, Price: 1.50, Quantity: 10
+    #
+    # That product "arepas" does not exist in the records
+  #+END_EXAMPLE
+  
+* 理解
+  *MVC 模式* 将应用程序划分为三种组件： 模型 - 视图 - 控制器：
+  + *模型(Model)* 用于封装与应用程序的业务逻辑相关的数据以及对数据的处理方法。
+  + *视图(View)* 能够实现数据有目的的显示（理论上，这不是必需的）。 在 View 中一般没有程序上的逻辑。
+  + *控制器(Controller)* 起到不同层面间的组织作用，用于控制应用程序的流程。 处理事件并作出响应。
+
+  *MVC 模式* 和 [[file:3-tier.org][三层架构]] 与 [[file:front_controller.org][前端控制器]] 有些类似， 都是将整体划分为了 *三个部分*.
+  
+  *前端控制器* 和 *MVC* 之间的关系通过在 [[https://stackoverflow.com/questions/36283909/what-is-the-difference-between-front-controller-design-pattern-and-mvc-design-pa][stackoverflow]] 上的问答可以了解到， *前端控制器* 算是 *MVC* 的一种
+  实现， 两者的结构也十分相似。
+
+  至于 *3-tier* 和 *MVC*, 通过在 [[https://softwareengineering.stackexchange.com/questions/299836/difference-between-3-tier-architecture-and-mvc-model-view-controller-in-asp-n][stackexchange]] 上的问答可以了解到， 两者并不能相互替代， 尽管结构十分相似。
+
+  _实践出真知_.
+
+  #+BEGIN_SRC python
+    class Model(object):
+        def __iter__(self):
+            raise NotImplementedError
+
+        def get(self, item):
+            """
+            Returns an object with a .items() call method
+            that iterates over key,value pairs of its information.
+            """
+            raise NotImplementedError
+
+        @property
+        def item_type(self):
+            raise NotImplementedError
+
+
+    class View(object):
+        def show_item_list(self, item_type, item_list):
+            raise NotImplementedError
+
+        def show_item_information(self, item_type, item_name, item_info):
+            """
+            Will look for item information by iterating over key,value pairs
+            yielded by item_info.items()
+            """
+            raise NotImplementedError
+
+        def item_not_found(self, item_type, item_name):
+            raise NotImplementedError
+
+
+    class UserModel(object):
+        class User(object):
+            def __init__(self, name, age):
+                self.name = name
+                self.age = age
+
+            def __str__(self):
+                return 'name: %s, age: %s' % (self.name, self.age)
+
+        users = {
+            'joe': User('joe', 20),
+            'alice': User('alice', 19),
+            'bob': User('bob', 23)
+        }
+
+        item_type = 'user'
+
+        def __iter__(self):
+            for item in self.users:
+                yield item
+
+        def get(self, user):
+            try:
+                return self.users[user]
+            except KeyError as e:
+                raise KeyError((str(e) + " not in the model's item list."))
+
+
+    class ConsoleView(View):
+        def show_item_list(self, item_type, item_list):
+            print(item_type.upper() + ' LIST:')
+            for item in item_list:
+                print(item)
+            print('')
+
+        def show_item_information(self, item_type, item_info):
+            print(item_type.upper() + ' INFORMATION:')
+            print(item_info)
+
+        def item_not_found(self, item_type, item_name):
+            print('That %s "%s" does not exist in the records' %
+                  (item_type, item_name))
+
+
+    class Controller(object):
+        def __init__(self, model, view):
+            self.model = model
+            self.view = view
+
+        def show_items(self):
+            items = list(self.model)
+            item_type = self.model.item_type
+            self.view.show_item_list(item_type, items)
+
+        def show_item_information(self, item_name):
+            try:
+                item_info = self.model.get(item_name)
+            except:
+                item_type = self.model.item_type
+                self.view.item_not_found(item_type, item_name)
+            else:
+                item_type = self.model.item_type
+                self.view.show_item_information(item_type, item_info)
+
+
+    if __name__ == '__main__':
+        model = UserModel()
+        view = ConsoleView()
+        controller = Controller(model, view)
+
+        controller.show_items()
+        controller.show_item_information('joe')
+        controller.show_item_information('alice')
+        controller.show_item_information('bob')
+        controller.show_item_information('jonh')
+  #+END_SRC
+  
+  执行结果：
+  #+BEGIN_EXAMPLE
+    USER LIST:
+    joe
+    alice
+    bob
+
+    USER INFORMATION:
+    name: joe, age: 20
+    USER INFORMATION:
+    name: alice, age: 19
+    USER INFORMATION:
+    name: bob, age: 23
+    That user "jonh" does not exist in the records
+  #+END_EXAMPLE
+

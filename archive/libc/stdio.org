@@ -1,0 +1,220 @@
+#+TITLE:      stdio
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#简介][简介]]
+- [[#一段有趣的代码][一段有趣的代码]]
+- [[#流和文件][流和文件]]
+- [[#对文件的操作][对文件的操作]]
+- [[#文件访问函数][文件访问函数]]
+- [[#格式化输入输出函数][格式化输入输出函数]]
+- [[#字符输入输出函数][字符输入输出函数]]
+- [[#直接输入输出函数][直接输入输出函数]]
+- [[#文件定位函数][文件定位函数]]
+- [[#错误处理函数][错误处理函数]]
+- [[#结尾][结尾]]
+
+* 简介
+  标准输入输出 ~stdio~, 这应该是我编程生涯中用到的第一个库， ~Hello World~ 就是在它的
+  帮助下输出到屏幕的。
+
+  现在，可以来看一看 ~stdio~ 的源码了，了解了解 *文件描述符*.
+
+* 一段有趣的代码
+  #+BEGIN_SRC C
+    /* Standard streams.  */
+    extern FILE *stdin;             /* Standard input stream.  */
+    extern FILE *stdout;            /* Standard output stream.  */
+    extern FILE *stderr;            /* Standard error output stream.  */
+    /* C89/C99 say they're macros.  Make them happy.  */
+    #define stdin stdin
+    #define stdout stdout
+    #define stderr stderr
+  #+END_SRC
+
+  中间那个注释是真的骚，还有人在 ~stackoverflow~ 上提问了 @_@
+
+  + [[https://stackoverflow.com/questions/47377745/c89-c99-say-theyre-macros-make-them-happy][“C89/C99 say they're macros. Make them happy.”?]]
+ 
+* 流和文件
+  C 语言支持两种形式的流： *文本流* 和 *二进制流*. 其他语言也差不多。
+
+  每个进程预定义打开的三个文件描述符为： stdin - 标准输入、 stdout - 标准输出、 stderr - 标准错误。
+
+  *缓冲的类型*:
+  + *无缓冲* - 输入输出都是立即执行 - ~_IONBF~
+  + *完全缓冲* - 当缓冲区被填满时字符作为块被移出 - ~_IOFBF~
+  + *行缓冲* - 当遇到换行符时字符作为块被移出 - ~_IOLBF~
+
+* 对文件的操作
+  对于 ~remove~ 和 ~rename~, 实现主要是通过 *系统调用*.
+
+  ~remove~ 直接删除文件，而 ~rename~ 复制源文件，然后在删除旧文件。
+
+  似乎，不存在直接的重命名操作。
+
+  可以看一下 ~tmpnam~ 生成临时文件名的方式：
+  #+BEGIN_SRC C
+    char* tmpnam(char* s) {
+      p = s + strlen(s) + i;
+      for (t = seed; 0 <= --i; t >> 3) {
+        *--p = '0' + (t & 07);
+      }
+      return s;
+    }
+  #+END_SRC
+  
+  省略了一些无关的代码， ~seed~ 是一个不会产生重复的值。
+
+  如果用 *时间* 作为 ~seed~ 的值怎么样 ？
+  
+  ~tmpfile~ 就很直接了，根据 ~tmpnam~ 生成的临时文件名来创建临时文件。
+
+  说起来，现在写的程序中还没有什么用到过临时文件的功能。
+
+* 文件访问函数
+  这部分需要的阅读需要了解 ~FILE~ 这个结构， ~FILE~ 的几个字段：
+  + _Mode - 流状态位集合
+  + _Handle - 文件描述符或文件句柄
+  + _Buf - 指向缓冲区首地址的指针
+  + _Bend - 指向超出缓冲区的第一个字符的地址
+  + _Next - 指向读或写操作的写一个字符的指针
+  + ...
+
+  字段不少，简单了解这几个就好。
+
+  ~fopen~ 肯定会将文件描述符保存到 ~_Handle~, 但是其他操作不明确。
+
+  应该是没有缓冲区的，缓冲区需要通过其他方式设置。
+
+  ~freopen~ 关闭原文件，将新打开的文件关联到 ~FILE~ 结构上。
+
+  ~fclose~ 会将缓冲区中的内容转移，并移除临时文件。
+
+  ~tmpfile~ 会将临时文件名保存到 ~File._Tmpnam~ 字段中。
+
+  可以看一下 ~fflush~ 的代码：
+  #+BEGIN_SRC C
+    int fflush(FILE* str) {
+      ...
+      for (s = str->_Buf; s < str->_Next; s += n) {
+        n = _FWrite(str, s, str->_Next - s);
+        ...
+      }
+    }
+  #+END_SRC
+
+  ~C~ 语言和我学过的其他语言就是不一样，但感觉还挺好的。
+
+  如果 ~str~ 是 ~NULL~ 的话， ~fflush~ 会清空所有打开的流。
+
+  了解了 ~FILE~ 结构的部分字段，对于 ~setbuf~ 和 ~setvbuf~ 的实现原理也就清楚了。
+
+  将缓冲区绑定到 ~FILE->_Buf~, 简单直接。
+
+  而要这个缓冲区发挥作用，还需要其他函数的配合才行。
+
+* 格式化输入输出函数
+  这部分的函数的实现我不是很关心，更关心的是这些函数之间的关系。
+
+  ~fprintf~ 和 ~fscanf~ 应该是万物之基了， ~printf~ 和 ~scanf~ 是对这两个函数的一层封装。
+
+  看到这里突然想起了 ~Python~ 中的 *偏函数*, 实现 ztm 复杂......
+
+  ~sprintf~ 和 ~sscanf~ 将 *流* 替换为了 *数组*.
+
+  剩下几个将可变参数表用 ~arg~ 代替。
+
+* 字符输入输出函数
+  还是要看 ~FILE~ 结构和相关的一些内容：
+
+  ~FILE~ 的字段：
+  |---------+----------------------------------|
+  | 字段    | 含义                             |
+  |---------+----------------------------------|
+  | _Mode   | 流状态位集合                     |
+  | _Buf    | 缓冲区首地址指针                 |
+  | _Bend   | 超出缓冲区的第一个字符指针       |
+  | _Next   | 读或写操作的写一个指针           |
+  | _Rend   | 指向超出读取数据范围的第一个指针 |
+  | _Rsave  | 如果字符回退，保存指针 _Rend     |
+  | _Wend   | 指向超出可写范围的第一个字符     |
+  | _Back   | 保存回退字符的栈                 |
+  | _Cbuf   | 当无缓冲区时作为单字符缓冲区使用 |
+  | _Nback  | 回退字符数量                     |
+  | _Tmpnam | 临时文件名                       |
+  |---------+----------------------------------|
+
+  打开一个文件时， ~_Buf~ 为 ~NULL~, ~_Next~  和 ~_Rend~ 等都指向 ~_Cbuf~.
+
+  读取字符时，首先检查 *回退字符*, 如果没有回退字符，同时 *缓冲区* 没有字符，就填充缓冲区。
+
+  然后返回 ~FIEL->_Next~.
+
+  #+BEGIN_SRC C
+    int fgetc(FILE* str) {
+      if (0 < str->_Nback) {
+        if (--str->_Nback == 0) {
+          str->_Rend = str->_Rsave;
+        }
+        return str->_Back[str->_Nback];
+      }
+      if (str->_Next < str->_Rend)
+        ;
+      else if (_Frprep(str) <= 0) {
+        return EOF;
+      }
+
+      return (*str->_Next++);
+    }
+  #+END_SRC
+
+  ~fgetc~, 如果 ~_Next < _Rend~, 说明缓冲区存在字符，直接返回。反之，填充缓冲区。
+
+  ~ungetc~ 感觉是个很有趣也很有用的函数，虽然没用过 QAQ
+
+  ~put~ 部分的函数也会将要输出的字符保存到缓冲区。
+
+  这里想到了当初编写 ~C~ 语言控制台程序的一个问题： *回车符*.
+
+  因为存在缓冲区，在控制台输入完成后， *回车符* 会保存到标准输入的缓冲区中。
+
+  现在的话，可以用 ~fflush~ 来刷新缓冲区。但也有一些问题，不能同时输入多个字符。
+
+* 直接输入输出函数
+  ~fwrite~ 会将要输出的数据保存到缓冲区，然后在使用 ~fflush~ 输出到文件。
+
+  而 ~fread~ 会将读取的内容先保存到缓冲区，在复制到数组。
+
+* 文件定位函数 
+  这一部分的函数都需要用到 *系统调用* 获取当前文件位置，在计算 *缓冲区* 中的相对位置。
+
+  两者都计算完成后才是当前的文件位置。
+
+  *缓冲区* 在一些地方带来了方便，在另一些地方却带来了更多的工作。
+
+  ~fgetpos~ 将文件定位符的值保存到一个 ~fpos_t~ 对象中。
+
+  ~fseek~ 直接设置流的文件定位符。
+
+  ~fsetpos~ 根据 ~fpos_t~ 对象设置文件定位符。
+
+  ~ftell~ 获取文件定位符的当前值。
+
+  ~rewind~ 把流的文件定位符设置到文件开始位置，等价于 ~(void)fseek(stream, 0L, SEEK_SET)~.
+
+* 错误处理函数
+  错误处理函数中的 ~clearerr~, ~feof~ 和 ~ferror~ 都是对 ~FILE->_Mode~ 的操作。
+
+  而 ~perror~ 将字符串输出到 ~stderr~.
+
+* 结尾
+  书上的一段描述很有道理：
+  
+  ~stdio.h~ 的实现的关键是 *数据结构 FILE* 和 *低层系统调用*.
+
+  这些函数就是围绕着这两者来实现的，每一个函数都能够看到它们的影子。
+
+  特别是 ~FILE~ 这个结构。
+

@@ -1,0 +1,130 @@
+#+TITLE:      saferef
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#依赖和兼容性处理][依赖和兼容性处理]]
+- [[#safe_ref][safe_ref]]
+- [[#boundmethodweakref][BoundMethodWeakref]]
+
+* 依赖和兼容性处理
+  #+BEGIN_SRC python
+    import operator
+    import sys
+    import traceback
+    import weakref
+
+
+    try:
+        callable
+    except NameError:
+        def callable(object):
+            return hasattr(object, '__call__')
+
+
+    if sys.version_info < (3,):
+        get_self = operator.attrgetter('im_self')
+        get_func = operator.attrgetter('im_func')
+    else:
+        get_self = operator.attrgetter('__self__')
+        get_func = operator.attrgetter('__func__')
+  #+END_SRC
+
+  这四个依赖都见过， 但是 ~operator~ 都快忘了是干啥的了......
+
+  感觉这篇博客可以： [[https://www.jianshu.com/p/1a3a2ae01c06][python operator 模块学习]].
+  
+  ~callable~ 的话， 在 ~2.7~ 中也是内置函数了， 兼容果然烦.....
+
+  ~get_self~ 和 ~get_func~ 通过 *实例方法* 获取 *实例* 和 *方法*.
+
+  具体可以看一下： [[https://segmentfault.com/a/1190000005701971][Python （类）实例方法的特殊属性]].
+
+  我只能说是真滴骚。
+
+* safe_ref
+  这个函数为一个可调用对象创建一个 *安全* 的 *弱引用*.
+  
+  #+BEGIN_SRC python
+    def safe_ref(target, on_delete=None):
+        try:
+            im_self = get_self(target)
+        except AttributeError:
+            if callable(on_delete):
+                return weakref.ref(target, on_delete)
+            else:
+                return weakref.ref(target)
+        else:
+            if im_self is not None:
+                # Turn a bound method into a BoundMethodWeakref instance.
+                # Keep track of these instances for lookup by disconnect().
+                assert hasattr(target, 'im_func') or hasattr(target, '__func__'), (
+                    "safe_ref target %r has im_self, but no im_func, "
+                    "don't know how to create reference" % target)
+                reference = BoundMethodWeakref(target=target, on_delete=on_delete)
+                return reference
+  #+END_SRC
+
+  ~weakref.ref~ 的第二个参数是一个回调函数， 当弱引用的对象被删除时会被调用。
+
+  这里的代码页比较好理解了， 首先判断 ~target~ 是否是 *实例方法*, 不是就根据是否提供了合适 ~on_delete~ 参数创建弱引用。
+
+  如果是， 创建一个 ~BoundMethodWeakref~ 实例返回。
+
+* BoundMethodWeakref 
+  实例方法的安全可重用的弱引用类型， 具体还是看代码比较好：
+
+  + [[https://github.com/jek/blinker/blob/master/blinker/_saferef.py#L88][BoundMethodWeakref]]
+
+  这个类的代码才是真滴绕， 用到了一些特殊的操作， 头晕 @_@
+
+  #+BEGIN_SRC python
+    def __new__(cls, target, on_delete=None, *arguments, **named):
+        key = cls.calculate_key(target)
+        current = cls._all_instances.get(key)
+        if current is not None:
+            current.deletion_methods.append(on_delete)
+            return current
+        else:
+            base = super(BoundMethodWeakref, cls).__new__(cls)
+            cls._all_instances[key] = base
+            base.__init__(target, on_delete, *arguments, **named)
+            return base
+  #+END_SRC
+
+  首先判断 ~_all_instances~ 中是否存在目标的弱引用
+  
+  然后， 后面这一堆代码没啥用啊......
+
+  ~current.deletion_methods.append~, 返回的是 ~BoundMethodWeakref~ 的实例， 那么之后就会调用 ~__init__~ 方法。
+
+  ~__init__~ 里的：
+  #+BEGIN_SRC python
+    self.deletion_methods = [on_delete]
+  #+END_SRC
+
+  不就直接干掉你这里的工作了吗......
+
+  ~else~ 里面也一样， ~base.__init__~ 调用后依然还是要调用 ~__init__~, 相当于重复调用了 QAQ
+
+  还以为是什么地方理解错了， 要这样写， 结果， 是这里有问题 ！！！
+
+  剩下的代码就比较好理解了， 主要是对弱引用的使用。
+
+  #+BEGIN_SRC python
+    ref = weakref.ref(obj)
+  #+END_SRC
+
+  ~ref()~ 会返回 ~obj~ 的强引用。
+
+  类似 ~obj.method.__func__.__get__(obj)~ 会返回绑定的实例方法。
+
+  emmm, ~__call__~ 里的代码是不是可以这样：
+  #+BEGIN_SRC python
+    def __call__(self):
+        target = self.weak_self()
+        if target is not None:
+            return self.weak_func()
+        return None
+  #+END_SRC
+

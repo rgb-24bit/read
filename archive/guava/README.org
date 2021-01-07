@@ -1,0 +1,13 @@
+#+TITLE:      guava 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  ~guava~ 是谷歌的一个扩展类库的合集， 这些类库被广泛的应用于谷歌的项目之中。
+
+  + 源码链接： [[https://github.com/google/guava/tree/v25.0/guava/src/com/google/common][guava 25.0]]
+
+* 目前进度
+
+* 相关链接
+  + [[https://google.github.io/guava/releases/25.0-jre/api/docs/overview-summary.html][Guava: Google Core Libraries for Java 25.0-jre API]]

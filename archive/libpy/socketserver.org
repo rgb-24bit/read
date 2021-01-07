@@ -1,0 +1,516 @@
+#+TITLE:      socketserver
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#dependence][dependence]]
+- [[#class-baseserver][class BaseServer]]
+- [[#class-tcpserver][class TCPServer]]
+- [[#class-udpserver][class UDPServer]]
+- [[#class-threadingmixin][class ThreadingMixIn]]
+- [[#class-baserequesthandler][class BaseRequestHandler]]
+- [[#class-streamrequesthandler][class StreamRequestHandler]]
+- [[#class-datagramrequesthandler][class DatagramRequestHandler]]
+- [[#class-textrequesthandler][class TextRequestHandler]]
+- [[#相关链接][相关链接]]
+
+* dependence
+  #+BEGIN_SRC python
+    import socket
+    import selectors
+    import os
+    import sys
+    import threading
+    from io import BufferedIOBase
+    from time import monotonic as time
+  #+END_SRC
+
+  ~socketserver~ 大部分依赖还是比较熟悉的，较为陌生的是： ~selectors~ 和 ~monotonic~.
+
+  + ~selectors~ - 高级 ~I/O~ 多路复用
+  + ~monotonic~ - 单调时钟
+
+  用到的 ~selectors~ 中的对象的两个方法：
+  + ~register(fileobj, events, data=None)~ - 注册文件对象并监听 ~events~ 指定的 ~I/O~ 事件
+
+    文件对象只需要实现 ~fileno~ 方法
+
+  + ~select(timeout=None)~ - 阻塞直到注册的文件对象准备就绪或超时到期
+
+  对于 ~monotonic~ - 单调时钟，这个概念是第一次接触，它表示自过去某些任意的不动点以来绝对经过的挂钟时间。
+  不受系统日间时钟变化的影响。
+
+  感觉是个好东西。
+
+* class BaseServer
+  为调用者提供的方法：
+  #+BEGIN_EXAMPLE
+    - __init__(server_address, RequestHandlerClass)
+    - serve_forever(poll_interval=0.5)
+    - shutdown()
+    - handle_request()  # if you do not use serve_forever()
+    - fileno() -> int   # for selector
+  #+END_EXAMPLE
+
+  可以覆盖的方法：
+  #+BEGIN_EXAMPLE
+    - server_bind()
+    - server_activate()
+    - get_request() -> request, client_address
+    - handle_timeout()
+    - verify_request(request, client_address)
+    - server_close()
+    - process_request(request, client_address)
+    - shutdown_request(request)
+    - close_request(request)
+    - service_actions()
+    - handle_error()
+  #+END_EXAMPLE
+
+  派生类的方法：
+  #+BEGIN_EXAMPLE
+    - finish_request(request, client_address)
+  #+END_EXAMPLE
+
+  可以被派生类或实例重写的类变量：
+  #+BEGIN_EXAMPLE
+    - timeout
+    - address_family
+    - socket_type
+    - allow_reuse_address
+  #+END_EXAMPLE
+
+  实例变量：
+  #+BEGIN_EXAMPLE
+    - RequestHandlerClass
+    - socket
+  #+END_EXAMPLE
+  
+  这个基类的设计真漂亮！
+
+  构造函数：
+  #+BEGIN_SRC python
+    def __init__(self, server_address, RequestHandlerClass):
+        """Constructor.  May be extended, do not override."""
+        self.server_address = server_address
+        self.RequestHandlerClass = RequestHandlerClass
+        self.__is_shut_down = threading.Event()
+        self.__shutdown_request = False
+  #+END_SRC
+
+  构造函数中的 ~__is_shutdown~ 是没有接触过的一个东西： ~threading.Event()~.
+
+  ~Event~ 对象管理一个内部标示符，这个标示符可以通过 ~set()~ 方法设为 ~True~, 通过 ~clear()~ 方法重新设为 ~False~,
+  ~wait()~ 方法则使线程一直处于阻塞状态，直到标示符变为 ~True~.
+
+  方法 ~serve_forever~:
+  #+BEGIN_SRC python
+    def serve_forever(self, poll_interval=0.5):
+        """Handle one request at a time until shutdown.
+        Polls for shutdown every poll_interval seconds. Ignores
+        self.timeout. If you need to do periodic tasks, do them in
+        another thread.
+        """
+        self.__is_shut_down.clear()
+        try:
+            # XXX: Consider using another file descriptor or connecting to the
+            # socket to wake this up instead of polling. Polling reduces our
+            # responsiveness to a shutdown request and wastes cpu at all other
+            # times.
+            with _ServerSelector() as selector:
+                selector.register(self, selectors.EVENT_READ)
+
+                while not self.__shutdown_request:
+                    ready = selector.select(poll_interval)
+                    if ready:
+                        self._handle_request_noblock()
+
+                    self.service_actions()
+        finally:
+            self.__shutdown_request = False
+            self.__is_shut_down.set()
+  #+END_SRC
+  
+  读懂 ~selector.register(self, selectors.EVENT_READ)~ 这一行需要了解的相关的源码：
+  #+BEGIN_SRC python
+    def _fileobj_to_fd(fileobj):
+        if isinstance(fileobj, int):
+            fd = fileobj
+        else:
+            try:
+                fd = int(fileobj.fileno())
+            except (AttributeError, TypeError, ValueError):
+                raise ValueError("Invalid file object: "
+                                 "{!r}".format(fileobj)) from None
+        if fd < 0:
+            raise ValueError("Invalid file descriptor: {}".format(fd))
+        return fd
+
+
+    def fileno(self):
+        return self.socket.fileno()
+  #+END_SRC
+
+  启动服务后，监听 ~socket~ 描述符的 ~EVENT_READ~ 事件，监听到后调用 ~self._handle_request_noblock()~ 处理请求。
+
+  该事件表示 ~socket~ 描述符准备好被读了。
+
+  每次循环还会调用 ~self.service_actions()~ 方法，具体行为由子类定义。
+
+  方法 ~shutdown~:
+  #+BEGIN_SRC python
+    def shutdown(self):
+        """Stops the serve_forever loop.
+        Blocks until the loop has finished. This must be called while
+        serve_forever() is running in another thread, or it will
+        deadlock.
+        """
+        self.__shutdown_request = True
+        self.__is_shut_down.wait()
+  #+END_SRC
+  
+  这个方法应该不是手动调用的，笔记调用 ~serve_forever~ 后就阻塞了。
+
+  ~__is_shutdown_request~ 用于阻断 ~serve_forever~ 循环，而 ~__is_shut_down~ 可以等待 ~serve_forever~ 循环的完成。
+
+  处理单个请求 ~handle_request~:
+  #+BEGIN_SRC python
+    def handle_request(self):
+        """Handle one request, possibly blocking.
+        Respects self.timeout.
+        """
+        # Support people who used socket.settimeout() to escape
+        # handle_request before self.timeout was available.
+        timeout = self.socket.gettimeout()
+        if timeout is None:
+            timeout = self.timeout
+        elif self.timeout is not None:
+            timeout = min(timeout, self.timeout)
+        if timeout is not None:
+            deadline = time() + timeout
+
+        # Wait until a request arrives or the timeout expires - the loop is
+        # necessary to accommodate early wakeups due to EINTR.
+        with _ServerSelector() as selector:
+            selector.register(self, selectors.EVENT_READ)
+
+            while True:
+                ready = selector.select(timeout)
+                if ready:
+                    return self._handle_request_noblock()
+                else:
+                    if timeout is not None:
+                        timeout = deadline - time()
+                        if timeout < 0:
+                            return self.handle_timeout()
+  #+END_SRC
+
+  和 ~serve_forever~ 类似，但只处理单个请求就退出，超时也 ~GG~.
+
+  真·处理请求：
+  #+BEGIN_SRC python
+    def _handle_request_noblock(self):
+        """Handle one request, without blocking.
+        I assume that selector.select() has returned that the socket is
+        readable before this function was called, so there should be no risk of
+        blocking in get_request().
+        """
+        try:
+            request, client_address = self.get_request()
+        except OSError:
+            return
+        if self.verify_request(request, client_address):
+            try:
+                self.process_request(request, client_address)
+            except Exception:
+                self.handle_error(request, client_address)
+                self.shutdown_request(request)
+            except:
+                self.shutdown_request(request)
+                raise
+        else:
+            self.shutdown_request(request)
+  #+END_SRC
+
+  针对请求处理的函数一堆，大致调用流程需要理一下：
+  1. 获取请求 - 由派生类实现
+  2. 验证请求 - 默认为 ~True~
+  3. 验证成功就处理请求 - ~process_request~
+  4. 验证失败就干掉请求 - ~shutdown_request~
+  5. 处理请求的默认流程为：
+     + 通过 ~finish_request~ 完成对请求的处理
+       #+BEGIN_SRC python
+         def finish_request(self, request, client_address):
+             """Finish one request by instantiating RequestHandlerClass."""
+             self.RequestHandlerClass(request, client_address, self)
+       #+END_SRC
+     + 通过 ~shutdown_request~ 干掉请求
+       #+BEGIN_SRC python
+         def shutdown_request(self, request):
+             """Called to shutdown and close an individual request."""
+             self.close_request(request)
+
+         def close_request(self, request):
+             """Called to clean up an individual request."""
+             pass
+       #+END_SRC
+  6. 处理请求出现异常时：
+     #+BEGIN_SRC python
+       try:
+           self.process_request(request, client_address)
+       except Exception:
+           self.handle_error(request, client_address)
+           self.shutdown_request(request)
+       except:
+           self.shutdown_request(request)
+           raise
+     #+END_SRC
+     
+  为子类的扩展留出了充分的空间。
+
+  nice !
+
+* class TCPServer
+  看过了 ~BaseServer~ 部分的源码， ~TCPServer~ 部分的源码阅读起来就轻松多了。
+
+  需要注意的部分源码：
+  #+BEGIN_SRC python
+    request, client_address = self.get_request()
+
+    def get_request(self):
+        """Get the request and client address from the socket.
+        May be overridden.
+        """
+        return self.socket.accept()
+  #+END_SRC
+
+  ~socket.accept~ 返回的是一个套接字对象和一个包含客户端地址的元组，接受的 ~request~ 是套接字对象。
+
+  在 ~shutdown~ 中，使用了套接字对象的一个方法：
+  #+BEGIN_SRC python
+    request.shutdown(socket.SHUT_WR)
+  #+END_SRC
+
+  通过 ~shutdown~ 可以明确关闭 ~socket~ 连接，因为 ~socket.close~ 会等待 ~GC~ 的完成。
+
+* class UDPServer
+  ~UDPServer~ 就更简单了，连 ~close_request~ 都不需要实现， ~get_request~ 是这样的：
+  #+BEGIN_SRC python
+    def get_request(self):
+        data, client_addr = self.socket.recvfrom(self.max_packet_size)
+        return (data, self.socket), client_addr
+  #+END_SRC
+
+  绝对是这几个里面最简单的。
+
+* class ThreadingMixIn
+  #+BEGIN_SRC python
+    class ThreadingMixIn:
+        """Mix-in class to handle each request in a new thread."""
+
+        # Decides how threads will act upon termination of the
+        # main process
+        daemon_threads = False
+        # If true, server_close() waits until all non-daemonic threads terminate.
+        block_on_close = True
+        # For non-daemonic threads, list of threading.Threading objects
+        # used by server_close() to wait for all threads completion.
+        _threads = None
+
+        def process_request_thread(self, request, client_address):
+            """Same as in BaseServer but as a thread.
+            In addition, exception handling is done here.
+            """
+            try:
+                self.finish_request(request, client_address)
+            except Exception:
+                self.handle_error(request, client_address)
+            finally:
+                self.shutdown_request(request)
+
+        def process_request(self, request, client_address):
+            """Start a new thread to process the request."""
+            t = threading.Thread(target = self.process_request_thread,
+                                 args = (request, client_address))
+            t.daemon = self.daemon_threads
+            if not t.daemon and self.block_on_close:
+                if self._threads is None:
+                    self._threads = []
+                self._threads.append(t)
+            t.start()
+
+        def server_close(self):
+            super().server_close()
+            if self.block_on_close:
+                threads = self._threads
+                self._threads = None
+                if threads:
+                    for thread in threads:
+                        thread.join()
+  #+END_SRC
+
+  这里需要结合 ~BaseServer~ 的部分源码阅读：
+  #+BEGIN_SRC python
+    class BaseServer:
+        def _handle_request_noblock(self):
+            """Handle one request, without blocking.
+            I assume that selector.select() has returned that the socket is
+            readable before this function was called, so there should be no risk of
+            blocking in get_request().
+            """
+            try:
+                request, client_address = self.get_request()
+            except OSError:
+                return
+            if self.verify_request(request, client_address):
+                try:
+                    self.process_request(request, client_address)
+                except Exception:
+                    self.handle_error(request, client_address)
+                    self.shutdown_request(request)
+                except:
+                    self.shutdown_request(request)
+                    raise
+            else:
+                self.shutdown_request(request)
+
+        def process_request(self, request, client_address):
+            """Call finish_request.
+            Overridden by ForkingMixIn and ThreadingMixIn.
+            """
+            self.finish_request(request, client_address)
+            self.shutdown_request(request)
+  #+END_SRC
+
+  在进行 ~process_request~ 的过程中，因为要新建一个线程，所以 ~_handle_request_noblock~ 中的异常处理无法生效。
+
+  所以在 ~ThreadingMixIn~ 中，将异常处理的相关代码放到了线程中，也就是 ~process_request_thread~ 中。
+
+  除此之外，都比较简单，比较有趣的的是 ~daemon_threads~ 和 ~block_on_close~ 两个变量的处理方式。
+
+  挺有启发性的。
+
+* class BaseRequestHandler
+  #+BEGIN_SRC python
+    class BaseRequestHandler:
+        def __init__(self, request, client_address, server):
+            self.request = request
+            self.client_address = client_address
+            self.server = server
+            self.setup()
+            try:
+                self.handle()
+            finally:
+                self.finish()
+  #+END_SRC
+
+  ~BaseRequestHandler~ 的源码比想象的简单的多，处理保存了必要的属性以外，就是直接在 ~__init__~ 中调用 ~handle~ 了。
+
+  这一点是比较意外的一点，没看源码前一直觉得是在 ~process_request~ 之类的方法类手动调用，结果是实例化时直接调用。
+
+  这样一来，子类的看点就集中在方法 ~handle~ 和 ~finish~ 上了。
+
+* class StreamRequestHandler
+  #+BEGIN_SRC python
+    class StreamRequestHandler(BaseRequestHandler):
+        wbufsize = 0
+        timeout = None
+        disable_nagle_algorithm = False
+
+        def setup(self):
+            self.connection = self.request
+            if self.timeout is not None:
+                self.connection.settimeout(self.timeout)
+            if self.disable_nagle_algorithm:
+                self.connection.setsockopt(socket.IPPROTO_TCP,
+                                           socket.TCP_NODELAY, True)
+            self.rfile = self.connection.makefile('rb', self.rbufsize)
+            if self.wbufsize == 0:
+                self.wfile = _SocketWriter(self.connection)
+            else:
+                self.wfile = self.connection.makefile('wb', self.wbufsize)
+
+        def finish(self):
+            if not self.wfile.closed:
+                try:
+                    self.wfile.flush()
+                except socket.error:
+                    # A final socket error may have occurred here, such as
+                    # the local error ECONNABORTED.
+                    pass
+            self.wfile.close()
+            self.rfile.close()
+
+    class _SocketWriter(BufferedIOBase):
+        def __init__(self, sock):
+            self._sock = sock
+
+        def writable(self):
+            return True
+
+        def write(self, b):
+            self._sock.sendall(b)
+            with memoryview(b) as view:
+                return view.nbytes
+
+        def fileno(self):
+            return self._sock.fileno()
+  #+END_SRC
+
+  创建 ~wfile~ 和 ~rfile~ 可以让读写操作更方便，更多的，就不是很清楚了......
+
+* class DatagramRequestHandler
+  这个挺简单的：
+  #+BEGIN_SRC python
+    class DatagramRequestHandler(BaseRequestHandler):
+
+        """Define self.rfile and self.wfile for datagram sockets."""
+
+        def setup(self):
+            from io import BytesIO
+            self.packet, self.socket = self.request
+            self.rfile = BytesIO(self.packet)
+            self.wfile = BytesIO()
+
+        def finish(self):
+            self.socket.sendto(self.wfile.getvalue(), self.client_address)
+  #+END_SRC
+
+  也就是说，用 ~StreamRequestHandler~ 和 ~DatagramRequestHandler~ 的时候，读写操作最好通过 ~wfile~ 和 ~rfile~ 完成，
+  其他的事情就不需要我们管了。
+
+* class TextRequestHandler
+  emmm, 自己写的，尝试一下：
+  #+BEGIN_SRC python
+    class TextRequest(BaseRequestHandler):
+        timeout = None
+        disable_nagle_algorithm = False
+        encoding = 'utf-8'
+
+        def setup(self):
+            self.connection = self.request
+            if self.timeout is not None:
+                self.connection.settimeout(self.timeout)
+            if self.disable_nagle_algorithm:
+                self.connection.setsockopt(socket.IPPROTO_TCP,
+                                               socket.TCP_NODELAY, True)
+            self.rfile = self.connection.makefile('r', self.rbufsize, encoding=self.encoding)
+            self.wfile = self.connection.makefile('w', self.wbufsize, encoding=self.encoding)
+
+        def finish(self):
+            if not self.wfile.closed:
+                try:
+                    self.wfile.flush()
+                except socket.error:
+                    # A final socket error may have occurred here, such as
+                    # the local error ECONNABORTED.
+                    pass
+            self.wfile.close()
+            self.rfile.close()
+  #+END_SRC
+
+  好水 @_@
+
+* 相关链接
+  + [[https://github.com/python/cpython/blob/master/Lib/socketserver.py][socketserver.py]]
+  + [[https://docs.python.org/3/library/socketserver.html][socketserver — A framework for network servers]]

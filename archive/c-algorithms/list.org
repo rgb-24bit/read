@@ -1,0 +1,321 @@
+#+TITLE:      list
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* Table of Contents                                       :TOC_4_gh:noexport:
+- [[#开始之前][开始之前]]
+- [[#概览][概览]]
+- [[#类型定义][类型定义]]
+
+* 开始之前
+  终于还是来看 ~c-algorithms~ 的源码了......
+
+  在 ~github~ 上 ~star~ 了这个项目好久了， 准备看源码也好久了， 但是因为各种原因不断推迟。
+
+  前两周看 ~flask~ 的源码， 加上之前看了那么多的 ~Python~ 代码， 感觉严重审美疲劳。
+
+  感觉是该换个语言的源码研究一下， 当时有两个选择： ~c-algorithms~ 和 ~guava~.
+
+  后面那个是 ~java~ 的， 考虑到 ~java~ 学的还不够， 就先看 ~c-algorithms~ 源码好了 QAQ
+
+  上一次摸数据结构还是大一， 现在大二都要完了 @_@
+
+  (｀・ω・´)
+
+* 概览
+  ~c-algorithms~ 的源码注释真的很清楚， 各个文件的作用也能一眼看明白， 基本上每一个数据结构都是
+  一个头文件和一个源文件。
+
+  比起大一自己写的代码好太多， 学习学习 ！
+
+  首先是 *文件注释*, 了解这个数据结构实现的基本情况：
+  + 这是一个双向链表， 链表中的每个节点（ListEntry）都包含指向下一个和前一个结点的链接
+  + 通过创建一个指向 ~ListEntry~ 结构的指针创建一个空链表， 初始化为 ~NULL~.
+  + 销毁一个链表使用 ~list_free~
+  + 添加值到链表使用 ~list_append~ 或 ~list_prepend~
+  + 移除值使用 ~list_remove_entry~ 或 ~list_remove_data~
+  + 通过 ~list_iterate~ 初始化一个 ~ListIterator~ 结构来遍历链表， 使用 ~list_iter_next~ 和 ~list_iter_has_more~ 依次
+    检索每个值
+  + 使用 ~list_iter_remove~ 移除当前节点
+  + 通过 ~list_nth_entry~ 和 ~list_nth_data~ 按索引检索值
+  + 修改值使用 ~list_set_data~
+  + 排序使用 ~list_sort~
+
+* 类型定义
+  类型定义是放在头文件中的， 记得之前看 *数据结构与算法分析* 这本书的时候提到要将结构体的声明放在头文件， 而定义放在 ~.c~ 文件。
+
+  照着这样做了一段时间， 然后感觉就是很不方便， 在看一下其他的代码， 似乎， 不是必须 ？
+
+  #+BEGIN_SRC C
+    #ifdef __cplusplus
+    extern "C" {
+    #endif
+
+    #ifdef __cplusplus
+    }
+    #endif
+  #+END_SRC
+
+  这是一个比较有趣的东西， 如果使用 ~C++~ 编译器编译这个文件， 那么就会将 ~extern "c" {}~ 中
+  的内容按照 ~C~ 编译。
+
+  #+BEGIN_SRC C
+    typedef struct _ListEntry ListEntry;
+
+    struct _ListEntry {
+      ListValue data;
+      ListEntry *prev;
+      ListEntry *next;
+    };
+  #+END_SRC
+
+  这个数据结构用于表示链表中的 *节点*, 空链表用指向 ~NULL~ 的 ~ListEntry~ 指针表示。
+
+  内部项中的一项是 ~ListValue~ 类型的：
+  #+BEGIN_SRC C
+    typedef void *ListValue;
+  #+END_SRC
+  
+  该类型的定义是这样的， 感觉是那么一回事， 使用者可以存指向任意类型的值的指针， 使用时转一下就可以了。
+
+  可是实际的值保存在什么地方呢 ？
+
+  #+BEGIN_SRC C
+    typedef struct _ListIterator ListIterator;
+
+    struct _ListIterator {
+      ListEntry **prev_next;
+      ListEntry *current;
+    };
+  #+END_SRC
+
+  用来遍历链表的结构， 第一个子项是一个 *二级指针*. 看具体使用怎么操作的。
+
+  #+BEGIN_SRC C
+    #define LIST_NULL ((void *) 0)
+  #+END_SRC
+
+  ~NULL~ 值宏定义。
+
+  #+BEGIN_SRC C
+    typedef int (*ListCompareFunc)(ListValue value1, ListValue value2);
+  #+END_SRC
+
+  函数指针类型定义， ~ListCompareFunc~ 类型变量指向一个类似以下结构的函数：
+  #+BEGIN_SRC C
+    int func(ListValue value1, ListValue value2);
+  #+END_SRC
+
+  作用是用于比较两个节点之间的比较。
+
+  #+BEGIN_SRC C
+    typedef int (*ListEqualFunc)(ListValue value1, ListValue value2);
+  #+END_SRC
+
+  同上， 用于判断两个节点是否相等。
+
+  ~ListCompareFunc~ 和 ~ListEqualFunc~ 的行为存在一些差别， ~ListCompareFunc~ 返回 0 表示两个
+  节点相等， 而 ~ListEqualFunc~ 返回 0 表示两个节点不相等。
+
+ 函数
+  #+BEGIN_SRC C
+    void list_free(ListEntry *list)
+    {
+      ListEntry *entry;
+
+      /* Iterate over each entry, freeing each list entry, until the
+       ,* end is reached */
+
+      entry = list;
+
+      while (entry != NULL) {
+        ListEntry *next;
+
+        next = entry->next;
+
+        free(entry);
+
+        entry = next;
+      }
+    }
+  #+END_SRC
+
+  销毁链表， 还是很简单的。
+
+  #+BEGIN_SRC C
+    ListEntry *list_prepend(ListEntry **list, ListValue data)
+    {
+      ListEntry *newentry;
+
+      if (list == NULL) {
+
+        /* not a valid list */
+
+        return NULL;
+      }
+
+      /* Create new entry */
+
+      newentry = malloc(sizeof(ListEntry));
+
+      if (newentry == NULL) {
+        return NULL;
+      }
+
+      newentry->data = data;
+
+      /* Hook into the list start */
+
+      if (*list != NULL) {
+        (*list)->prev = newentry;
+      }
+      newentry->prev = NULL;
+      newentry->next = *list;
+      ,*list = newentry;
+
+      return newentry;
+    }
+  #+END_SRC
+
+  为什么要用 *二级指针* 呢 ？
+
+  这个函数将值添加到链表第一个节点之前， +如果链表为空， 会添加失败+.
+
+  ~if (list == NULL)~ 判断的不是链表是否为空， 而是那个指向链表的指针的值是否为 ~NULL~.
+
+  这里的实现方式和之前看的书上有一定区别， 首先这个链表没有头结点， 然后， 函数的返回值
+  是指向 *新节点* 的指针。
+
+  因此， 需要通过 *二级指针* 在函数体内部直接修改原节点的值， 同时获取指向新节点的指针。
+
+  剩下的代码没什么好说的， 问题是如果传入的 ~list~ 不是指向开始节点会不会使数据丢失呢 ？
+
+  #+BEGIN_SRC C
+    ListEntry *list_append(ListEntry **list, ListValue data)
+    {
+      ListEntry *rover;
+      ListEntry *newentry;
+
+      if (list == NULL) {
+        return NULL;
+      }
+
+      /* Create new list entry */
+
+      newentry = malloc(sizeof(ListEntry));
+
+      if (newentry == NULL) {
+        return NULL;
+      }
+
+      newentry->data = data;
+      newentry->next = NULL;
+
+      /* Hooking into the list is different if the list is empty */
+
+      if (*list == NULL) {
+
+        /* Create the start of the list */
+
+        ,*list = newentry;
+        newentry->prev = NULL;
+
+      } else {
+
+        /* Find the end of list */
+
+        for (rover=*list; rover->next != NULL; rover = rover->next);
+
+        /* Add to the end of list */
+
+        newentry->prev = rover;
+        rover->next = newentry;
+      }
+
+      return newentry;
+    }
+  #+END_SRC
+
+  这个代码没啥好说的， 不过这个循环还是可以的：
+  #+BEGIN_SRC C
+    for (rover=*list; rover->next != NULL; rover = rover->next);
+  #+END_SRC
+
+  ~Python~ 没有这种循环有时还是有点难受啊 ！
+
+  #+BEGIN_SRC C
+    ListValue list_data(ListEntry *listentry);
+    void list_set_data(ListEntry *listentry, ListValue value);
+    ListEntry *list_prev(ListEntry *listentry);
+    ListEntry *list_next(ListEntry *listentry);
+  #+END_SRC
+
+  这几个函数没啥好说的， 主要是将一些简单常用操作写成了函数。
+
+  #+BEGIN_SRC C
+    ListEntry *list_nth_entry(ListEntry *list, unsigned int n)
+    {
+      ListEntry *entry;
+      unsigned int i;
+
+      /* Iterate through n list entries to reach the desired entry.
+       ,* Make sure we do not reach the end of the list. */
+
+      entry = list;
+
+      for (i=0; i<n; ++i) {
+
+        if (entry == NULL) {
+          return NULL;
+        }
+        entry = entry->next;
+      }
+
+      return entry;
+    }
+
+    ListValue list_nth_data(ListEntry *list, unsigned int n)
+    {
+      ListEntry *entry;
+
+      /* Find the specified entry */
+
+      entry = list_nth_entry(list, n);
+
+      /* If out of range, return NULL, otherwise return the data */
+
+      if (entry == NULL) {
+        return LIST_NULL;
+      } else {
+        return entry->data;
+      }
+    }
+  #+END_SRC
+
+  这两个函数的代码还是很简单的， 感觉还是很有用的操作。
+
+  #+BEGIN_SRC C
+    unsigned int list_length(ListEntry *list)
+    {
+      ListEntry *entry;
+      unsigned int length;
+
+      length = 0;
+      entry = list;
+
+      while (entry != NULL) {
+
+        /* Count the number of entries */
+
+        ++length;
+
+        entry = entry->next;
+      }
+
+      return length;
+    }
+  #+END_SRC
+
+  基本操作。
+
+  

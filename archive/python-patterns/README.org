@@ -1,0 +1,30 @@
+#+TITLE:      python-patterns 源码阅读
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* 简介
+  ~python-patterns~ 是 ~Python~ 中的设计模式和习语的集合， 希望可以通过阅读 ~python-patterns~
+  的源码来学习 ~Python~ 中设计模式的实现与使用。
+
+  + 源码链接： [[https://github.com/faif/python-patterns][python-patterns]]
+
+* 目前进度
+  + 创造型模式 ::
+    + [[file:abstract_factory.org][abstract_factory]] - 抽象工厂模式 - [[[https://zh.wikipedia.org/zh-hans/%E6%8A%BD%E8%B1%A1%E5%B7%A5%E5%8E%82][维基百科]]]
+    + [[file:borg.org][borg]] - 类似单例模式 - [[[https://zh.wikipedia.org/wiki/%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:builder.org][builder]] - 建造者模式 - [[[https://zh.wikipedia.org/wiki/%E7%94%9F%E6%88%90%E5%99%A8%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:factory_method.org][factory_method]] - 工厂方法模式 - [[[https://zh.wikipedia.org/zh-hans/%E5%B7%A5%E5%8E%82%E6%96%B9%E6%B3%95][维基百科]]]
+    + [[file:lazy_evaluation.org][lazy_evaluation]] - 惰性求值 - [[[https://zh.wikipedia.org/wiki/%E6%83%B0%E6%80%A7%E6%B1%82%E5%80%BC][维基百科]]]
+    + [[file:pool.org][pool]] - 对象池模式 - [[[https://zh.wikipedia.org/wiki/%25E5%25AF%25B9%25E8%25B1%25A1%25E6%25B1%25A0%25E6%25A8%25A1%25E5%25BC%258F][维基百科]]]
+    + [[file:prototype.org][prototype]] - 原型模式 - [[[https://zh.wikipedia.org/wiki/%25E5%258E%259F%25E5%259E%258B%25E6%25A8%25A1%25E5%25BC%258F][维基百科]]]
+  + 结构型模式 ::
+    + [[file:3-tier.org][3-tier]] - 三层架构 - [[[http://wiki.mbalib.com/wiki/%E4%B8%89%E5%B1%82%E7%BB%93%E6%9E%84][智库百科]]]
+    + [[file:adapter.org][adapter]] - 适配器模式 - [[[https://zh.wikipedia.org/wiki/%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:bridge.org][bridge]] - 桥接模式 - [[[https://zh.wikipedia.org/wiki/%E6%A9%8B%E6%8E%A5%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:composite.org][composite]] - 组合模式 - [[[https://en.wikipedia.org/wiki/Composite_pattern][维基百科]]]
+    + [[file:decorator.org][decorator]] - 装饰者模式 - [[[https://zh.wikipedia.org/wiki/%E4%BF%AE%E9%A5%B0%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:facade.org][facade]] - 外观模式 - [[[https://zh.wikipedia.org/wiki/%E5%A4%96%E8%A7%80%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:flyweight.org][flyweight]] - 享元模式 - [[[https://zh.wikipedia.org/wiki/%E4%BA%AB%E5%85%83%E6%A8%A1%E5%BC%8F][维基百科]]]
+    + [[file:front_controller.org][front_controller]] - 前端控制器模式 - [[[https://en.wikipedia.org/wiki/Front_controller][维基百科]]]
+    + [[file:mvc.org][mvc]] - MVC 模式 - [[[https://zh.wikipedia.org/wiki/MVC][维基百科]]]
+    + [[file:proxy.org][proxy]] - 代理模式 - [[[https://zh.wikipedia.org/wiki/%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F][维基百科]]]

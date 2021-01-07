@@ -1,0 +1,317 @@
+#+TITLE:      net
+#+AUTHOR:     rgb-24bit
+#+EMAIL:      rgb-24bit@foxmail.com
+
+* import
+  #+BEGIN_SRC python
+    import urllib, time
+    import datetime
+    import re
+    import socket
+
+    try:
+        from urllib.parse import quote
+    except ImportError:
+        from urllib import quote
+
+    from .py3helpers import PY2
+  #+END_SRC
+  
+  导入的这几个模块都比较熟悉了， 代码量也比较少， 应该比上一个模块的源码好读。
+
+  + *quote*: 使用 ~%xx~ 转义替换字符串中的特殊字符.
+    
+    与之相关的还有 ~unquote~, ~urlencode~, 文档 -  [[https://docs.python.org/2/library/urllib.html#utility-functions][Utility functions]]
+
+* function validip6addr
+  检查是否为有效的 ~ip6~ 地址， 测试方法用了一个我不熟悉的函数：
+  #+BEGIN_SRC python
+    def validip6addr(address):
+        try:
+            socket.inet_pton(socket.AF_INET6, address)
+        except (socket.error, AttributeError):
+            return False
+
+        return True
+  #+END_SRC
+
+  + ~socket.inet_pton~ :: 将 ~IP~ 地址从其特定于家庭的字符串格式转换为打包的二进制格式。
+
+  使用这个方法来测试地址是否有效确实很方便， 我来估计就是根据格式来操作了。
+
+  ~Python~ 的标准库确实已经帮我们解决了很多问题了。
+
+  + [[https://docs.python.org/3.6/library/socket.html#socket.inet_aton][相关函数文档]]
+
+  Update: <2018-04-16 周一>:
+  ~Windows~ 平台 ~Python2~ 没有 ~socket.into_pton~...
+
+* function validipaddr
+  检查是否为有效的 ~ip4~ 地址， 操作方式和上一个函数不一样：
+  #+BEGIN_SRC python
+    def validipaddr(address):
+        try:
+            octets = address.split('.')
+            if len(octets) != 4:
+                return False
+            for x in octets:
+                if not (0 <= int(x) <= 255):
+                    return False
+        except ValueError:
+            return False
+        return True
+  #+END_SRC
+
+  不是有个和 ~socket.inet_pton~ 类似的函数 ~socket.inet_aton~ 吗。
+
+  试一下：
+  #+BEGIN_SRC python
+    def validipaddr(address):
+        try:
+            socket.inet_aton(address)
+        except (socket.error, AttributeError):
+            return False
+
+        return True
+  #+END_SRC
+
+  测试：
+  #+BEGIN_SRC python
+    >>> validipaddr('1.1.1.1')
+    True
+    >>> validipaddr('1.1.1.')
+    False
+    >>> validipaddr('192.168.1.1')
+    True
+    >>> validipaddr('192.168.1.256')
+    False
+  #+END_SRC
+
+  这样操作是可以的， 当然了， 作者实现的方式更加通用。
+  
+  不对， 重新测试了一下， ~('192.168.1')~ 的测试结果为 ~True~...
+
+  还是用作者的方式吧......
+  
+  用我的这个方式还会导致函数 ~validip~ 的错误。
+
+* function validipport
+  检查端口是否有效：
+  #+BEGIN_SRC python
+    def validipport(port):
+        try:
+            if not (0 <= int(port) <= 65535):
+                return False
+        except ValueError:
+            return False
+        return True
+  #+END_SRC
+
+  一直感觉僵硬的一点就是， ~socket~ 的 ~address~ 参数中， ~ip~ 是字符串而 ~port~ 是整型......
+
+* function validip
+  获取有效的 ~ip~
+  #+BEGIN_SRC python
+    def validip(ip, defaultaddr="0.0.0.0", defaultport=8080):
+        """
+        Returns `(ip_address, port)` from string `ip_addr_port`
+
+            >>> validip('1.2.3.4')
+            ('1.2.3.4', 8080)
+            >>> validip('80')
+            ('0.0.0.0', 80)
+            >>> validip('192.168.0.1:85')
+            ('192.168.0.1', 85)
+            >>> validip('::')
+            ('::', 8080)
+            >>> validip('[::]:88')
+            ('::', 88)
+            >>> validip('[::1]:80')
+            ('::1', 80)
+
+        """
+        addr = defaultaddr
+        port = defaultport
+
+        #Matt Boswell's code to check for ipv6 first
+        match = re.search(r'^\[([^]]+)\](?::(\d+))?$',ip) #check for [ipv6]:port
+        if match:
+            if validip6addr(match.group(1)):
+                if match.group(2):
+                    if validipport(match.group(2)): return (match.group(1),int(match.group(2)))
+                else:
+                    return (match.group(1),port)
+        else:
+            if validip6addr(ip): return (ip,port)
+        #end ipv6 code
+
+        ip = ip.split(":", 1)
+        if len(ip) == 1:
+            if not ip[0]:
+                pass
+            elif validipaddr(ip[0]):
+                addr = ip[0]
+            elif validipport(ip[0]):
+                port = int(ip[0])
+            else:
+                raise ValueError(':'.join(ip) + ' is not a valid IP address/port')
+        elif len(ip) == 2:
+            addr, port = ip
+            if not validipaddr(addr) or not validipport(port):
+                raise ValueError(':'.join(ip) + ' is not a valid IP address/port')
+            port = int(port)
+        else:
+            raise ValueError(':'.join(ip) + ' is not a valid IP address/port')
+        return (addr, port)
+  #+END_SRC
+
+  这个源码的阅读很是需要参考一下文档字符串。
+
+  ...
+
+  看这个函数的源码还是需要一点时间理解的， 功能很强大， 代码理解起来就比较难了。
+
+  同时对 ~ipv6~ 和 ~ipv4~ 的地址进行了检查并返回需要的 ~addr~.
+
+  感觉， 调整一下函数的结构是可以的：
+  #+BEGIN_SRC python
+    def validip(ip, defaultaddr="0.0.0.0", defaultport=8080):
+        def validipv6(ip, addr, port):
+  #+END_SRC
+
+  才怪......
+
+* function validaddr
+  #+BEGIN_SRC python
+    def validaddr(string_):
+        """
+        Returns either (ip_address, port) or "/path/to/socket" from string_
+        """
+        if '/' in string_:
+            return string_
+        else:
+            return validip(string_)
+  #+END_SRC
+
+  作用很明确， 疑惑是 ~/path/to/socket~ 是什么东西 ？
+
+  查了一下， 应该和 [[https://zh.wikipedia.org/wiki/Unix%E5%9F%9F%E5%A5%97%E6%8E%A5%E5%AD%97][Unix域套接字]] 有关
+
+* function urlquote
+  将一个字符串的编码格式转化为符合， 对 ~Python2~ 和 ~Python3~ 进行了兼容。
+
+  在 ~Python3~ 中调用 ~quote~ 的参数的编码没有影响， 而 ~Python2~ 必须是 ~bytes~.
+
+  #+BEGIN_SRC python
+    def urlquote(val):
+        if val is None: return ''
+
+        if PY2:
+            if isinstance(val, unicode):
+                val = val.encode('utf-8')
+            else:
+                val = str(val)
+        else:
+            val = str(val).encode('utf-8')
+        return quote(val)
+  #+END_SRC
+
+* function httpdate
+  格式化时间用于 ~HTTP headers~.
+  #+BEGIN_SRC python
+    def httpdate(date_obj):
+        return date_obj.strftime("%a, %d %b %Y %H:%M:%S GMT")
+  #+END_SRC
+
+  使用：
+  #+BEGIN_SRC python
+    >>> import datetime
+    >>> httpdate(datetime.datetime(1970, 1, 1, 1, 1, 1))
+    'Thu, 01 Jan 1970 01:01:01 GMT'
+  #+END_SRC
+
+  挺有用的。
+
+* function parsehttpdate
+  和前一个函数相反：
+  #+BEGIN_SRC python
+    def parsehttpdate(string_):
+        """
+        Parses an HTTP date into a datetime object.
+
+            >>> parsehttpdate('Thu, 01 Jan 1970 01:01:01 GMT')
+            datetime.datetime(1970, 1, 1, 1, 1, 1)
+        """
+        try:
+            t = time.strptime(string_, "%a, %d %b %Y %H:%M:%S %Z")
+        except ValueError:
+            return None
+        return datetime.datetime(*t[:6])
+  #+END_SRC
+
+  ~time.strptime~ 根据指定的格式分割时间字符串。
+  
+* function htmlquote
+  对 ~HTML~ 字符实体进行转化， 很有用：
+  #+BEGIN_SRC python
+    def htmlquote(text):
+        text = text.replace(u"&", u"&amp;") # Must be done first!
+        text = text.replace(u"<", u"&lt;")
+        text = text.replace(u">", u"&gt;")
+        text = text.replace(u"'", u"&#39;")
+        text = text.replace(u'"', u"&quot;")
+        return text
+  #+END_SRC
+
+  简单，粗暴，有效 ！
+
+  ~text~ 应该是需要时 ~unicode~ 字符串。
+
+* function htmlunquote
+  猜到了， 有转化就应该有还原才对：
+  #+BEGIN_SRC python
+    def htmlunquote(text):
+        text = text.replace(u"&quot;", u'"')
+        text = text.replace(u"&#39;", u"'")
+        text = text.replace(u"&gt;", u">")
+        text = text.replace(u"&lt;", u"<")
+        text = text.replace(u"&amp;", u"&") # Must be done last!
+        return text
+  #+END_SRC
+
+* function websafe
+  前面的函数估计就是配合这个函数用的了：
+  #+BEGIN_SRC python
+    def websafe(val):
+        r"""Converts `val` so that it is safe for use in Unicode HTML.
+
+            >>> websafe("<'&\">")
+            u'&lt;&#39;&amp;&quot;&gt;'
+            >>> websafe(None)
+            u''
+            >>> websafe(u'\u203d') == u'\u203d'
+            True
+        """
+        if val is None:
+            return u''
+
+        if PY2:
+            if isinstance(val, str):
+                val = val.decode('utf-8')
+            elif not isinstance(val, unicode):
+                val = unicode(val)
+        else:
+            if isinstance(val, bytes):
+                val = val.decode('utf-8')
+            elif not isinstance(val, str):
+                val = str(val)
+
+        return htmlquote(val)
+  #+END_SRC
+
+  如果， ~val~ 的编码不是 ~utf-8~ 怎么破。。。
+
+* 完成
+  这个模块的代码比 ~utils~ 模块源码好看多了， 同时这个模块的内容也是干货满满， 可以
+  收集一波。
+
