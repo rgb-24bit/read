@@ -47,3 +47,9 @@
      Go 接口的实现和结构体的定义是割裂的，在只看到结构体的情况下你并不能知道它实现了什么接口，这时如果还遵循 Java 里面先接口后实现的模式，
      在代码量上来后，反而会为代码的维护和阅读带来额外的负担。
 
+  ---
+
+  ☞ [[https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md][Sizedness in Rust]]
+
+  1) double-width pointer，同时存在指向对象的指针和指向长度的指针
+
