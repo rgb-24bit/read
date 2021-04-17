@@ -138,3 +138,14 @@
   2) 面试中经常会问内存回收相关的问题，但内存分配的好像比较少
   3) 感觉并发场景下内存的分配、访问和回收的基本思路貌似都差不多？这里的 per core cache > mid cache => backend 和 CPU 高速缓存结构也比较类似
 
+  -----
+
+  ☞ [[https://mp.weixin.qq.com/s/ZA-_BARVAWe0Q4eM0lYgwg][透过 Rust 探索系统的本原：编程语言]]
+
+  1) 一般而言，一门语言在设计之初，总需要在：性能（performance），安全（safety）和表达力（expressiveness）上做取舍
+  2) Rust 刚开始学，感受上确实和之前学习过的语言不一样，在提供了 C/C++ Level 级别的性能，Python 级别的抽象能力的同时，保证了类型安全。
+     但相应的，这需要 Rust 强大的编译器提供支持，而 Rust 也将很多语言层面的细节暴露出来，编写代码的时候需要考虑这样写是否能通过编译。
+     这和其他语言中只需要简单关注是否符合语法不一样。
+  3) 后面感觉可以学习一下 Erlang/Elixir/Sala，对 actor model 还是有点好奇的
+
+
