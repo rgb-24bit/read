@@ -148,4 +148,10 @@
      这和其他语言中只需要简单关注是否符合语法不一样。
   3) 后面感觉可以学习一下 Erlang/Elixir/Sala，对 actor model 还是有点好奇的
 
+  -----
+
+  ☞ [[https://www.infoq.cn/article/t0qlhfk7uxxzwo0uo*9s][Feed 流系统设计总纲-InfoQ]]
+
+  1) 推模式/拉模式 - 读写扩散，看到这篇文章才猛然发现，现在业界不少场景已经有较为成熟的解决方案，比如这里的 Feed 流，
+     可以去了解这些业界常见问题及解决方案
 
